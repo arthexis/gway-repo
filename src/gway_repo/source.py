@@ -44,7 +44,11 @@ def _resolve_symbol(
         scope = f" in {file}" if file else ""
         raise ValueError(f"symbol not found{scope}: {symbol}")
     if len(matches) > 1:
-        names = [str(item.get("qualified_name")) for item in matches if isinstance(item, dict)]
+        names = [
+            str(item.get("qualified_name"))
+            for item in matches
+            if isinstance(item, dict)
+        ]
         suffix = ", ".join(names)
         raise ValueError(f"symbol is ambiguous: {symbol}; matches: {suffix}")
     match = matches[0]

@@ -1,0 +1,7 @@
+[project]
+name = "repo"
+aliases = ["gway-repo"]
+
+[adapter]
+type = "python"
+module = "gway_repo.commands"

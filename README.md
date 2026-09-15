@@ -64,13 +64,42 @@ jobs include the names and conclusions of failed steps without downloading or
 dumping full workflow logs. `--run-limit` and `--job-limit` bound the result;
 `--sha` similarly avoids another PR lookup when the head is already known.
 
-The intended composition is one invocation gathering several structured
-fragments, for example conceptually:
+The low-level operations remain independently composable:
 
 ```console
 gway repo pr 916 --file-limit 0 - repo reviews 916 --unresolved-only - repo checks 916 - repo workflows 916
 ```
 
-A later `repo context` recipe/operation can assemble the same primitives into a
-single bounded result. The project roadmap is tracked in
+## Unified context
+
+For the common case, `context` packages those primitives into one bounded
+result:
+
+```console
+gway repo context --pr 916
+gway repo context --issue 917
+gway repo context --pr 916 --no-include-workflows
+gway repo context --pr 916 --file-limit 25 --thread-limit 20 --run-limit 10
+```
+
+Exactly one of `--pr` or `--issue` is required. PR context contains the
+normalized pull request plus optional `reviews`, `checks`, and `workflows`
+sections. It resolves the PR once and reuses the head SHA for checks and
+workflows, avoiding redundant PR metadata requests.
+
+The top-level `summary` surfaces the fields most likely to need attention:
+mergeability, review decision, unresolved-thread count, failed/pending checks,
+and failed/running workflows. Each detailed section stays available underneath
+for callers that need more than the summary.
+
+The three live PR sections can be disabled independently with GWay's boolean
+flags when a recipe needs a cheaper packet. All underlying limits remain
+available on `context`, so callers can control bodies, changed files, reviews,
+threads, checks, workflow runs, and jobs.
+
+Issue context uses the same stable envelope but only includes the normalized
+issue section. File and symbol context are intentionally reserved for the later
+repository-map and symbol-index milestones.
+
+The project roadmap is tracked in
 [issue #1](https://github.com/arthexis/gway-repo/issues/1).

@@ -297,9 +297,7 @@ def _walk_dependents(
         retained = set(sorted(distance)[:visit_limit])
         queue = deque(node_id for node_id in queue if node_id in retained)
         distance = {
-            node_id: value
-            for node_id, value in distance.items()
-            if node_id in retained
+            node_id: value for node_id, value in distance.items() if node_id in retained
         }
         provenance = {
             node_id: value
@@ -453,9 +451,7 @@ def _impact_from_records(
     dependents = _serialize_dependents(raw_dependents)
     tests = _serialize_tests(raw_tests)
     raw_errors = graph.get("parse_errors")
-    errors = [
-        item for item in raw_errors or [] if isinstance(item, dict)
-    ]
+    errors = [item for item in raw_errors or [] if isinstance(item, dict)]
 
     return {
         "kind": "impact",

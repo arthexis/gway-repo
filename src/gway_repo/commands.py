@@ -7,6 +7,7 @@ from .discovery import repository_info
 from .github import issue_state, pull_request_state
 from .live import check_state, review_state, workflow_state
 from .mapping import files_state, repository_map
+from .relationships import relationships_state
 from .symbols import symbols_state
 
 
@@ -196,5 +197,28 @@ def symbols(
         import_limit=import_limit,
         error_limit=error_limit,
         include_imports=include_imports,
+        refresh=refresh,
+    )
+
+
+def relations(
+    path: str = ".",
+    file: str | None = None,
+    symbol: str | None = None,
+    kind: str | None = None,
+    edge_limit: int = 500,
+    node_limit: int = 500,
+    error_limit: int = 50,
+    refresh: bool = False,
+) -> dict[str, object]:
+    """Return a bounded conservative relationship graph for the repository."""
+    return relationships_state(
+        path=path,
+        file=file,
+        symbol=symbol,
+        kind=kind,
+        edge_limit=edge_limit,
+        node_limit=node_limit,
+        error_limit=error_limit,
         refresh=refresh,
     )

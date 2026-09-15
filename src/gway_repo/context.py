@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .github import issue_state, pull_request_state, resolve_repository
+from .impact import impact_for_pull_state, impact_state
 from .live import check_state, review_state, workflow_state
 
 _SUCCESS_CONCLUSIONS = {"success", "neutral", "skipped"}
@@ -41,11 +42,58 @@ def _workflow_summary(
     return failed, pending
 
 
+def _impact_summary(impact: dict[str, object] | None) -> dict[str, object]:
+    if impact is None:
+        return {}
+    basis = impact.get("basis")
+    summary = impact.get("summary")
+    basis = basis if isinstance(basis, dict) else {}
+    summary = summary if isinstance(summary, dict) else {}
+    return {
+        "impact_available": impact.get("available"),
+        "impact_authoritative": basis.get("authoritative"),
+        "changed_symbols": summary.get("changed_symbols", 0),
+        "dependent_symbols": summary.get("dependents", 0),
+        "relevant_tests": summary.get("tests", 0),
+    }
+
+
+def _impact_failure(
+    repository: str,
+    target: dict[str, object],
+    exc: RuntimeError,
+) -> dict[str, object]:
+    reason = f"impact_lookup_failed: {exc}"
+    return {
+        "kind": "impact",
+        "repository": repository,
+        "target": target,
+        "available": False,
+        "reason": reason,
+        "basis": {"authoritative": False, "reason": reason},
+        "summary": {
+            "changed_files": 0,
+            "mapped_files": 0,
+            "unmapped_files": 0,
+            "changed_symbols": 0,
+            "dependents": 0,
+            "tests": 0,
+        },
+        "changed_files": [],
+        "changed_symbols": [],
+        "dependents": [],
+        "tests": [],
+        "unmapped_files": [],
+        "parse_errors": [],
+    }
+
+
 def _pr_summary(
     pull: dict[str, object],
     reviews: dict[str, object] | None,
     checks: dict[str, object] | None,
     workflows: dict[str, object] | None,
+    impact: dict[str, object] | None,
 ) -> dict[str, object]:
     problem_checks = checks.get("problem_checks", []) if checks else []
     pending_checks = checks.get("pending_checks", []) if checks else []
@@ -75,6 +123,7 @@ def _pr_summary(
         "failed_workflows": failed_workflows,
         "pending_workflows": pending_workflows,
         "attention": attention,
+        **_impact_summary(impact),
     }
 
 
@@ -86,6 +135,7 @@ def context_state(
     include_reviews: bool = True,
     include_checks: bool = True,
     include_workflows: bool = True,
+    include_impact: bool = True,
     body_limit: int = 12_000,
     file_limit: int = 100,
     review_limit: int = 100,
@@ -95,6 +145,16 @@ def context_state(
     summary_limit: int = 2_000,
     run_limit: int = 20,
     job_limit: int = 50,
+    impact_depth: int = 2,
+    impact_pr_limit: int = 20,
+    impact_event_limit: int = 300,
+    impact_changed_file_limit: int = 100,
+    impact_symbol_limit: int = 100,
+    impact_dependent_limit: int = 100,
+    impact_test_limit: int = 100,
+    impact_error_limit: int = 20,
+    impact_visit_limit: int = 2_000,
+    refresh: bool = False,
 ) -> dict[str, object]:
     """Return one bounded context envelope for a PR or issue."""
     if (pr is None) == (issue is None):
@@ -110,22 +170,53 @@ def context_state(
             path=path,
             body_limit=body_limit,
         )
+        impact = None
+        if include_impact:
+            try:
+                impact = impact_state(
+                    issue=number,
+                    repository=repo,
+                    path=path,
+                    depth=impact_depth,
+                    pr_limit=impact_pr_limit,
+                    event_limit=impact_event_limit,
+                    file_limit=file_limit,
+                    changed_file_limit=impact_changed_file_limit,
+                    symbol_limit=impact_symbol_limit,
+                    dependent_limit=impact_dependent_limit,
+                    test_limit=impact_test_limit,
+                    error_limit=impact_error_limit,
+                    visit_limit=impact_visit_limit,
+                    refresh=refresh,
+                )
+            except RuntimeError as exc:
+                impact = _impact_failure(
+                    repo,
+                    {"kind": "issue", "number": number},
+                    exc,
+                )
+
+        included = ["issue"]
+        if impact is not None:
+            included.append("impact")
         return {
             "kind": "context",
             "repository": repo,
             "target": {"kind": "issue", "number": number},
-            "included_sections": ["issue"],
+            "included_sections": included,
             "summary": {
                 "state": item.get("state"),
                 "state_reason": item.get("state_reason"),
                 "labels": item.get("labels", []),
                 "comments": item.get("comments", 0),
+                **_impact_summary(impact),
             },
             "issue": item,
             "pull_request": None,
             "reviews": None,
             "checks": None,
             "workflows": None,
+            "impact": impact,
         }
 
     number = int(pr)
@@ -174,6 +265,23 @@ def context_state(
         if include_workflows
         else None
     )
+    impact = (
+        impact_for_pull_state(
+            pull,
+            repository=repo,
+            path=path,
+            depth=impact_depth,
+            changed_file_limit=impact_changed_file_limit,
+            symbol_limit=impact_symbol_limit,
+            dependent_limit=impact_dependent_limit,
+            test_limit=impact_test_limit,
+            error_limit=impact_error_limit,
+            visit_limit=impact_visit_limit,
+            refresh=refresh,
+        )
+        if include_impact
+        else None
+    )
 
     included = ["pull_request"]
     if reviews is not None:
@@ -182,6 +290,8 @@ def context_state(
         included.append("checks")
     if workflows is not None:
         included.append("workflows")
+    if impact is not None:
+        included.append("impact")
 
     return {
         "kind": "context",
@@ -189,10 +299,11 @@ def context_state(
         "target": {"kind": "pull_request", "number": number},
         "head_sha": head_sha,
         "included_sections": included,
-        "summary": _pr_summary(pull, reviews, checks, workflows),
+        "summary": _pr_summary(pull, reviews, checks, workflows, impact),
         "issue": None,
         "pull_request": pull,
         "reviews": reviews,
         "checks": checks,
         "workflows": workflows,
+        "impact": impact,
     }

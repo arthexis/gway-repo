@@ -10,6 +10,7 @@ from .links import issue_pull_requests_state
 from .live import check_state, review_state, workflow_state
 from .mapping import files_state, repository_map
 from .relationships import relationships_state
+from .source import code_state
 from .symbols import symbols_state
 
 
@@ -238,6 +239,31 @@ def symbols(
         import_limit=import_limit,
         error_limit=error_limit,
         include_imports=include_imports,
+        refresh=refresh,
+    )
+
+
+def code(
+    path: str = ".",
+    file: str | None = None,
+    symbol: str | None = None,
+    start_line: int | None = None,
+    end_line: int | None = None,
+    context: int = 2,
+    max_lines: int = 400,
+    max_chars: int = 30_000,
+    refresh: bool = False,
+) -> dict[str, object]:
+    """Return bounded indexed source for one file or Python symbol."""
+    return code_state(
+        path=path,
+        file=file,
+        symbol=symbol,
+        start_line=start_line,
+        end_line=end_line,
+        context=context,
+        max_lines=max_lines,
+        max_chars=max_chars,
         refresh=refresh,
     )
 

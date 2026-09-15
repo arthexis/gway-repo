@@ -141,9 +141,11 @@ def issue_pull_requests_state(
             continue
         key = (item_repo, number)
         current = candidates.get(key)
-        if current is None or _RELATION_PRIORITY[str(item["relation"])] > _RELATION_PRIORITY[
-            str(current["relation"])
-        ]:
+        if (
+            current is None
+            or _RELATION_PRIORITY[str(item["relation"])]
+            > _RELATION_PRIORITY[str(current["relation"])]
+        ):
             candidates[key] = item
 
     linked = sorted(

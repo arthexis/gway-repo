@@ -72,33 +72,32 @@ gway repo pr 916 --file-limit 0 - repo reviews 916 --unresolved-only - repo chec
 
 ## Unified context
 
-For the common case, `context` packages those primitives into one bounded
-result:
+For the common case, `context` packages the GitHub state and optional local
+impact analysis into one bounded result:
 
 ```console
 gway repo context --pr 916
 gway repo context --issue 917
 gway repo context --pr 916 --no-include-workflows
+gway repo context --pr 916 --no-include-impact
 gway repo context --pr 916 --file-limit 25 --thread-limit 20 --run-limit 10
 ```
 
 Exactly one of `--pr` or `--issue` is required. PR context contains the
-normalized pull request plus optional `reviews`, `checks`, and `workflows`
-sections. It resolves the PR once and reuses the head SHA for checks and
-workflows, avoiding redundant PR metadata requests.
+normalized pull request plus optional `reviews`, `checks`, `workflows`, and
+`impact` sections. It resolves the PR once, reuses the head SHA for checks and
+workflows, and passes the already-fetched PR payload into impact analysis rather
+than making another PR metadata request.
 
-The top-level `summary` surfaces the fields most likely to need attention:
-mergeability, review decision, unresolved-thread count, failed/pending checks,
-and failed/running workflows. Each detailed section stays available underneath
-for callers that need more than the summary.
+The top-level PR summary surfaces mergeability, review decision, unresolved
+threads, failed/pending checks, failed/running workflows, and compact impact
+counts. Issue context uses the same envelope and can add aggregate impact across
+PRs linked to that issue.
 
-The three live PR sections can be disabled independently with GWay's boolean
-flags when a recipe needs a cheaper packet. All underlying limits remain
-available on `context`, so callers can control bodies, changed files, reviews,
-threads, checks, workflow runs, and jobs.
-
-Issue context uses the same stable envelope but only includes the normalized
-issue section.
+Live sections can be disabled independently with GWay's boolean flags. Use
+`--no-include-impact` when a recipe only needs GitHub state or no suitable local
+checkout is available. Local impact unavailability does not erase the ordinary
+PR/issue context packet.
 
 ## Repository map
 
@@ -211,10 +210,63 @@ and completed graphs are cached in the existing local SQLite database by Git
 index tree SHA. Use `--refresh` to bypass map, symbol, and relationship cache
 reads.
 
-This milestone deliberately stops at graph construction and querying. A later
-impact/context slice can start from PR changed files, traverse this graph within
-explicit bounds, and attach dependent symbols and likely tests to the unified
-repository context.
+## Issue-linked pull requests
+
+`prs` discovers pull requests connected to an issue from bounded GitHub issue
+timeline evidence:
+
+```console
+gway repo prs --issue 917
+gway repo prs --issue 917 --limit 10 --event-limit 200
+```
+
+Closing references such as `Fixes #917` are reported as `closes` with exact
+confidence. Explicit timeline connections are `connected`; ordinary PR
+cross-references are retained as weaker `mentions` evidence. Duplicate evidence
+for the same PR is collapsed to the strongest relationship. Cross-repository
+PRs are preserved in the result rather than silently discarded.
+
+## Change impact
+
+`impact` consumes the map, symbol index, and relationship graph to answer what a
+change can affect. Exactly one target is required:
+
+```console
+gway repo impact --file src/gway_repo/context.py
+gway repo impact --pr 916
+gway repo impact --issue 917
+gway repo impact --pr 916 --depth 1
+gway repo impact --issue 917 --pr-limit 10 --depth 2
+```
+
+A changed file seeds the file/module/symbol nodes represented in the current Git
+index. Impact then walks resolved incoming `call`, `import`, and `inheritance`
+edges up to `--depth`, reports dependent symbols, and collects `tested_by`
+evidence plus test-origin dependency edges. Cycles are deduplicated and a visit
+limit bounds traversal independently from changed-file, symbol, dependent,
+test, and parse-error output limits.
+
+PR impact uses the PR's bounded changed-file list and records the analysis basis:
+the local analysis HEAD, index tree, HEAD tree, target PR head, and whether the
+repository, head, and index match. If the checkout matches the PR head and the
+index matches HEAD, the result is authoritative. A different PR head can still
+be projected onto the current graph, but the packet explicitly marks that
+projection non-authoritative instead of pretending it describes that historical
+revision exactly. Deleted or otherwise absent paths are returned as
+`unmapped_files`.
+
+Issue impact first discovers connected PRs with `prs`, fetches bounded changed
+files for same-repository PRs, and aggregates them into one deduplicated impact
+packet. Changed symbols, dependents, and tests keep `pull_requests` provenance so
+a caller can see which PRs contributed each result. Per-PR summaries are also
+retained. Because one checkout usually cannot equal several historical PR heads,
+issue impact explicitly reports whether every linked PR head matches the current
+analysis graph. Cross-repository links are surfaced but are not guessed against
+the local graph.
+
+`context --pr` and `context --issue` include this impact packet by default when
+requested local analysis is available. Use `--no-include-impact` for the cheaper
+GitHub-only context path.
 
 The project roadmap is tracked in
 [issue #1](https://github.com/arthexis/gway-repo/issues/1).

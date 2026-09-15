@@ -98,8 +98,46 @@ available on `context`, so callers can control bodies, changed files, reviews,
 threads, checks, workflow runs, and jobs.
 
 Issue context uses the same stable envelope but only includes the normalized
-issue section. File and symbol context are intentionally reserved for the later
-repository-map and symbol-index milestones.
+issue section.
+
+## Repository map
+
+`map` provides a deterministic structural view of the local repository without
+walking untracked files or build output:
+
+```console
+gway repo map
+gway repo map --file-limit 100
+gway repo map --refresh
+gway repo files --kind test
+gway repo files --kind workflow
+gway repo files --extension py --package gway_repo
+```
+
+The map is built from Git's tracked index. Each file is classified as Python,
+test, workflow, configuration, documentation, script, migration, asset, or
+other. Python package roots are detected for conventional `src/` and flat
+package layouts, Python module names are inferred from those roots, and simple
+test-to-source relationships are reported when a filename has one unambiguous
+match.
+
+Results include HEAD and Git index tree SHAs, package/layout metadata, useful
+repository roots, summary counts, bounded file details, blob sizes, and a
+conservative generated-file flag. `files` queries the same structural data but
+returns a bounded filtered view, avoiding the cost and output size of returning
+the full map to recipes that only need one category.
+
+Maps are cached locally in `.git/gway-repo/map.sqlite3` using the HEAD SHA and
+index tree SHA. A staged structural change therefore invalidates the cache even
+before it is committed, while untracked files remain intentionally invisible.
+Use `--refresh` to rebuild the map explicitly. Cache failures are non-fatal, so
+read-only or unusual Git environments can still build a map when possible.
+
+This milestone intentionally does not parse Python ASTs or claim call/import
+relationships. The next symbol-index work can consume the Python files already
+identified by the map. A later context-enrichment change can then attach
+relevant mapped code areas to PR context without changing the existing context
+envelope.
 
 The project roadmap is tracked in
 [issue #1](https://github.com/arthexis/gway-repo/issues/1).

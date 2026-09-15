@@ -42,10 +42,7 @@ def relation_repo(tmp_path: Path) -> Path:
             "        missing()\n"
         ),
         "tests/test_core.py": (
-            "from demo.core import Worker\n"
-            "\n"
-            "def test_worker():\n"
-            "    Worker()\n"
+            "from demo.core import Worker\n\ndef test_worker():\n    Worker()\n"
         ),
         "broken.py": "def broken(:\n    pass\n",
     }
@@ -75,15 +72,17 @@ def test_relationships_resolve_import_calls_inheritance_and_tests(
     tested_by = _edges(result, "tested_by")
 
     assert any(
-        edge["from"] == "demo.core"
-        and edge["to"] == "demo.helpers.helper"
+        edge["from"] == "demo.core" and edge["to"] == "demo.helpers.helper"
         for edge in import_edges
     )
-    assert sum(
-        edge["from"] == "demo.core.Worker.run"
-        and edge["to"] == "demo.helpers.helper"
-        for edge in call_edges
-    ) == 2
+    assert (
+        sum(
+            edge["from"] == "demo.core.Worker.run"
+            and edge["to"] == "demo.helpers.helper"
+            for edge in call_edges
+        )
+        == 2
+    )
     assert any(
         edge["from"] == "demo.core.Worker.run"
         and edge["expression"] == "missing"
@@ -157,12 +156,7 @@ def test_relationship_cache_tracks_git_index_not_unstaged_worktree(
     assert second["summary"]["graph_cache_hit"] is True
 
     core = relation_repo / "src/demo/core.py"
-    core.write_text(
-        "from .helpers import helper\n"
-        "\n"
-        "def changed():\n"
-        "    helper()\n"
-    )
+    core.write_text("from .helpers import helper\n\ndef changed():\n    helper()\n")
     unstaged = relationships_state(relation_repo, kind="call")
     assert unstaged["tree_sha"] == first["tree_sha"]
     assert unstaged["summary"]["graph_cache_hit"] is True
@@ -173,8 +167,7 @@ def test_relationship_cache_tracks_git_index_not_unstaged_worktree(
     assert staged["tree_sha"] != first["tree_sha"]
     assert staged["summary"]["graph_cache_hit"] is False
     assert any(
-        edge["from"] == "demo.core.changed"
-        and edge["to"] == "demo.helpers.helper"
+        edge["from"] == "demo.core.changed" and edge["to"] == "demo.helpers.helper"
         for edge in staged["edges"]
     )
 

@@ -395,9 +395,9 @@ def _build_graph(
                         if imported_name != "*"
                         else base
                     )
-                    if candidate and candidate in symbol_ids:
-                        target = candidate
-                    elif candidate and candidate in module_ids:
+                    if candidate and (
+                        candidate in symbol_ids or candidate in module_ids
+                    ):
                         target = candidate
                     elif base and base in module_ids:
                         target = base
@@ -505,7 +505,8 @@ def _build_graph(
                     )
 
     exact_tested_by: set[tuple[str, str]] = set()
-    for edge in list(edges):
+    original_edges = tuple(edges)
+    for edge in original_edges:
         if edge.get("kind") not in {"import", "call"} or not edge.get("resolved"):
             continue
         source_path = edge.get("source_path")

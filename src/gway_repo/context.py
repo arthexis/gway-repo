@@ -15,7 +15,9 @@ def _head_sha(pull: dict[str, object]) -> str:
     return head["sha"]
 
 
-def _workflow_summary(workflows: dict[str, object] | None) -> tuple[list[str], list[str]]:
+def _workflow_summary(
+    workflows: dict[str, object] | None,
+) -> tuple[list[str], list[str]]:
     if not workflows:
         return [], []
 

@@ -6,6 +6,7 @@ from .context import context_state
 from .discovery import repository_info
 from .github import issue_state, pull_request_state
 from .live import check_state, review_state, workflow_state
+from .mapping import files_state, repository_map
 
 
 def info(path: str = ".") -> dict[str, object]:
@@ -140,4 +141,32 @@ def context(
         summary_limit=summary_limit,
         run_limit=run_limit,
         job_limit=job_limit,
+    )
+
+
+def map(
+    path: str = ".",
+    refresh: bool = False,
+    file_limit: int = 500,
+) -> dict[str, object]:
+    """Return a bounded structural map of the local Git repository."""
+    return repository_map(path=path, refresh=refresh, file_limit=file_limit)
+
+
+def files(
+    path: str = ".",
+    kind: str | None = None,
+    extension: str | None = None,
+    package: str | None = None,
+    limit: int = 200,
+    refresh: bool = False,
+) -> dict[str, object]:
+    """Return a bounded filtered view of Git-tracked repository files."""
+    return files_state(
+        path=path,
+        kind=kind,
+        extension=extension,
+        package=package,
+        limit=limit,
+        refresh=refresh,
     )

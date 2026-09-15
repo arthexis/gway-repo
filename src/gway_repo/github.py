@@ -90,7 +90,9 @@ def _names(values: object) -> list[str]:
 def _linked_issues(body: object) -> list[int]:
     if not isinstance(body, str):
         return []
-    return sorted({int(match.group("number")) for match in _ISSUE_REFERENCE.finditer(body)})
+    return sorted(
+        {int(match.group("number")) for match in _ISSUE_REFERENCE.finditer(body)}
+    )
 
 
 def issue_state(

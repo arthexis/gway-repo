@@ -165,9 +165,56 @@ A syntax error in one tracked Python file does not abort the repository index;
 it is returned in the bounded `parse_errors` section and other files continue
 to index normally. `--refresh` bypasses both map and symbol cache reads.
 
-This milestone deliberately stops at definitions and imports. It does not yet
-claim callers, callees, import dependency edges, or test impact; those belong
-to the relationship-analysis layer built on top of this symbol index.
+The symbol index supplies definitions, imports, and cached AST call expressions
+to the relationship-analysis layer described below. Dynamic Python behavior is
+not guessed at the symbol-index boundary.
+
+## Relationship analysis
+
+`relations` turns the repository map and symbol index into a bounded, queryable
+relationship graph:
+
+```console
+gway repo relations
+gway repo relations --file src/gway_repo/context.py
+gway repo relations --symbol gway_repo.context.context_state
+gway repo relations --kind import
+gway repo relations --kind call
+gway repo relations --kind inheritance
+gway repo relations --kind tested_by
+```
+
+The graph contains `defines`, `import`, `call`, `inheritance`, and `tested_by`
+edges. Nodes represent tracked files, Python modules and symbols, plus external
+imports when useful. Edges carry source/target paths, source lines, resolution
+method, and confidence metadata.
+
+Resolution is intentionally conservative. Direct lexical references and import
+bindings that map unambiguously to indexed modules or symbols are marked exact.
+Calls or inheritance targets that cannot be established statically remain
+explicit unresolved edges instead of being guessed. This keeps downstream
+agents and recipes able to distinguish knowledge from uncertainty.
+
+Test relationships use two evidence levels. Imports and calls from test files
+produce exact `tested_by` edges to production symbols. The repository map's
+unambiguous filename convention can additionally produce file-level
+`tested_by` edges with `likely` confidence.
+
+`--symbol` returns both incoming and outgoing edges touching a symbol and puts
+the corresponding counts in `summary`. `--file` returns relationships touching
+a repository-relative file; `--kind` selects one relation type. `--edge-limit`,
+`--node-limit`, and `--error-limit` bound output independently.
+
+The relationship graph follows the Git index just like `map` and `symbols`.
+Unstaged worktree edits remain invisible, staged changes invalidate the graph,
+and completed graphs are cached in the existing local SQLite database by Git
+index tree SHA. Use `--refresh` to bypass map, symbol, and relationship cache
+reads.
+
+This milestone deliberately stops at graph construction and querying. A later
+impact/context slice can start from PR changed files, traverse this graph within
+explicit bounds, and attach dependent symbols and likely tests to the unified
+repository context.
 
 The project roadmap is tracked in
 [issue #1](https://github.com/arthexis/gway-repo/issues/1).

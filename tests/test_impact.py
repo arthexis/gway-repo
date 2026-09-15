@@ -30,14 +30,10 @@ def impact_repo(tmp_path: Path) -> Path:
         "src/demo/__init__.py": "",
         "src/demo/core.py": "def target():\n    return 1\n",
         "src/demo/service.py": (
-            "from .core import target\n\n"
-            "def caller():\n"
-            "    return target()\n"
+            "from .core import target\n\ndef caller():\n    return target()\n"
         ),
         "src/demo/api.py": (
-            "from .service import caller\n\n"
-            "def top():\n"
-            "    return caller()\n"
+            "from .service import caller\n\ndef top():\n    return caller()\n"
         ),
         "tests/test_core.py": (
             "from demo.core import target\n\n"

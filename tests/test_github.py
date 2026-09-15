@@ -16,7 +16,9 @@ def test_resolve_repository_rejects_invalid_value() -> None:
         github.resolve_repository("not-a-repository")
 
 
-def test_issue_state_is_compact_and_bounds_body(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_issue_state_is_compact_and_bounds_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     payload = {
         "number": 7,
         "title": "Example issue",

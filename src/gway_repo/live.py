@@ -207,7 +207,9 @@ def _review_threads(
             if not isinstance(node, dict):
                 continue
             comments = node.get("comments")
-            comment_nodes = comments.get("nodes") if isinstance(comments, dict) else None
+            comment_nodes = (
+                comments.get("nodes") if isinstance(comments, dict) else None
+            )
             first = (
                 comment_nodes[0]
                 if isinstance(comment_nodes, list)
@@ -347,7 +349,9 @@ def check_state(
                             if isinstance(app, dict)
                             else None
                         ),
-                        "title": output.get("title") if isinstance(output, dict) else None,
+                        "title": output.get("title")
+                        if isinstance(output, dict)
+                        else None,
                         "summary": summary,
                         "summary_truncated": summary_truncated,
                     }
@@ -443,7 +447,9 @@ def workflow_state(
                     f"actions/runs/{run_id}/jobs?filter=latest&per_page={job_limit}",
                 )
                 if not isinstance(jobs_payload, dict):
-                    raise GitHubAPIError("GitHub workflow-jobs response was not an object")
+                    raise GitHubAPIError(
+                        "GitHub workflow-jobs response was not an object"
+                    )
                 raw_jobs = jobs_payload.get("jobs")
                 if isinstance(raw_jobs, list):
                     for job in raw_jobs[:job_limit]:

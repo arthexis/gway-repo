@@ -16,31 +16,7 @@ _DEPENDENCY_KINDS = {"call", "import", "inheritance"}
 _CONFIDENCE = {"unknown": 0, "likely": 1, "exact": 2}
 
 
-def _validate_limits(
-    *,
-    depth: int,
-    pr_limit: int,
-    event_limit: int,
-    file_limit: int,
-    changed_file_limit: int,
-    symbol_limit: int,
-    dependent_limit: int,
-    test_limit: int,
-    error_limit: int,
-    visit_limit: int,
-) -> None:
-    values = {
-        "depth": depth,
-        "pr_limit": pr_limit,
-        "event_limit": event_limit,
-        "file_limit": file_limit,
-        "changed_file_limit": changed_file_limit,
-        "symbol_limit": symbol_limit,
-        "dependent_limit": dependent_limit,
-        "test_limit": test_limit,
-        "error_limit": error_limit,
-        "visit_limit": visit_limit,
-    }
+def _validate_limits(**values: int) -> None:
     for name, value in values.items():
         if value < 0:
             raise ValueError(f"{name} must be non-negative")
@@ -54,10 +30,12 @@ def _local_graph(
     try:
         root = find_root(path)
         mapped, graph, cache_hit = _graph(root, refresh=refresh)
-        if not isinstance(graph.get("nodes"), list) or not isinstance(
-            graph.get("edges"), list
-        ):
+        if not isinstance(mapped, dict) or not isinstance(graph, dict):
             raise TypeError("relationship graph is invalid")
+        if not isinstance(graph.get("nodes"), list):
+            raise TypeError("relationship graph has invalid nodes")
+        if not isinstance(graph.get("edges"), list):
+            raise TypeError("relationship graph has invalid edges")
         return mapped, graph, cache_hit, None
     except (
         OSError,
@@ -133,24 +111,49 @@ def _merge_file_records(
                 if isinstance(number, int):
                     record["pull_requests"].add(number)
 
-    result: list[dict[str, object]] = []
-    for path in sorted(merged):
-        item = merged[path]
-        result.append(
-            {
-                "path": path,
-                "statuses": sorted(item["statuses"]),
-                "previous_paths": sorted(item["previous_paths"]),
-                "pull_requests": sorted(item["pull_requests"]),
-            }
-        )
-    return result
+    return [
+        {
+            "path": path,
+            "statuses": sorted(item["statuses"]),
+            "previous_paths": sorted(item["previous_paths"]),
+            "pull_requests": sorted(item["pull_requests"]),
+        }
+        for path, item in sorted(merged.items())
+    ]
 
 
 def _better_confidence(current: str, candidate: str) -> str:
-    current_rank = _CONFIDENCE.get(current, 0)
-    candidate_rank = _CONFIDENCE.get(candidate, 0)
-    return candidate if candidate_rank > current_rank else current
+    if _CONFIDENCE.get(candidate, 0) > _CONFIDENCE.get(current, 0):
+        return candidate
+    return current
+
+
+def _add_test(
+    tests: dict[str, dict[str, object]],
+    *,
+    path: str,
+    confidence: str,
+    evidence: str,
+    source: str,
+    pull_requests: set[int],
+) -> None:
+    record = tests.setdefault(
+        path,
+        {
+            "path": path,
+            "confidence": confidence,
+            "evidence": set(),
+            "sources": set(),
+            "pull_requests": set(),
+        },
+    )
+    record["confidence"] = _better_confidence(
+        str(record["confidence"]),
+        confidence,
+    )
+    record["evidence"].add(evidence)
+    record["sources"].add(source)
+    record["pull_requests"].update(pull_requests)
 
 
 def _tests_for(
@@ -163,49 +166,27 @@ def _tests_for(
         path = edge.get("target_path")
         if not isinstance(path, str):
             continue
-        confidence = str(edge.get("confidence") or "unknown")
-        record = tests.setdefault(
-            path,
-            {
-                "path": path,
-                "confidence": confidence,
-                "evidence": set(),
-                "sources": set(),
-                "pull_requests": set(),
-            },
-        )
-        record["confidence"] = _better_confidence(
-            str(record["confidence"]),
-            confidence,
-        )
         evidence = edge.get("evidence") or edge.get("resolution") or "tested_by"
-        record["evidence"].add(str(evidence))
-        record["sources"].add(node_id)
-        record["pull_requests"].update(pull_requests)
+        _add_test(
+            tests,
+            path=path,
+            confidence=str(edge.get("confidence") or "unknown"),
+            evidence=str(evidence),
+            source=node_id,
+            pull_requests=pull_requests,
+        )
 
 
-def _impact_from_records(
-    mapped: dict[str, object],
+def _graph_indexes(
     graph: dict[str, object],
-    records: list[dict[str, object]],
-    *,
-    target: dict[str, object],
-    basis: dict[str, object],
-    graph_cache_hit: bool,
-    depth: int,
-    changed_file_limit: int,
-    symbol_limit: int,
-    dependent_limit: int,
-    test_limit: int,
-    error_limit: int,
-    visit_limit: int,
-) -> dict[str, object]:
-    raw_nodes = graph.get("nodes")
-    raw_edges = graph.get("edges")
-    raw_errors = graph.get("parse_errors")
-    if not isinstance(raw_nodes, list) or not isinstance(raw_edges, list):
-        raise TypeError("relationship graph is invalid")
-
+) -> tuple[
+    dict[str, dict[str, object]],
+    dict[str, list[str]],
+    dict[str, list[dict[str, object]]],
+    dict[str, list[dict[str, object]]],
+]:
+    raw_nodes = graph["nodes"]
+    raw_edges = graph["edges"]
     nodes = {
         str(node["id"]): node
         for node in raw_nodes
@@ -217,54 +198,72 @@ def _impact_from_records(
         if isinstance(node_path, str):
             nodes_by_path.setdefault(node_path, []).append(node_id)
 
-    raw_map_files = mapped.get("files")
-    map_paths = {
-        str(item["path"])
-        for item in raw_map_files or []
-        if isinstance(item, dict) and isinstance(item.get("path"), str)
-    }
-
     incoming: dict[str, list[dict[str, object]]] = {}
     tested_by: dict[str, list[dict[str, object]]] = {}
     for edge in raw_edges:
         if not isinstance(edge, dict):
             continue
         source = edge.get("from")
-        target_id = edge.get("to")
+        target = edge.get("to")
         kind = edge.get("kind")
         if kind == "tested_by" and isinstance(source, str):
             tested_by.setdefault(source, []).append(edge)
         if (
             kind in _DEPENDENCY_KINDS
             and edge.get("resolved")
-            and isinstance(target_id, str)
+            and isinstance(target, str)
         ):
-            incoming.setdefault(target_id, []).append(edge)
+            incoming.setdefault(target, []).append(edge)
+    return nodes, nodes_by_path, incoming, tested_by
 
+
+def _map_paths(mapped: dict[str, object]) -> set[str]:
+    raw = mapped.get("files")
+    if not isinstance(raw, list):
+        return set()
+    return {
+        str(item["path"])
+        for item in raw
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    }
+
+
+def _seed_changes(
+    records: list[dict[str, object]],
+    nodes: dict[str, dict[str, object]],
+    nodes_by_path: dict[str, list[str]],
+    map_paths: set[str],
+) -> tuple[
+    list[dict[str, object]],
+    list[dict[str, object]],
+    dict[str, set[int]],
+    dict[str, dict[str, object]],
+]:
     changed_files: list[dict[str, object]] = []
-    seed_provenance: dict[str, set[int]] = {}
     unmapped: list[dict[str, object]] = []
-    changed_symbols: dict[str, dict[str, object]] = {}
+    seeds: dict[str, set[int]] = {}
+    symbols: dict[str, dict[str, object]] = {}
 
     for item in records:
         file_path = str(item["path"])
         pull_requests = {
-            number for number in item.get("pull_requests", []) if isinstance(number, int)
+            number
+            for number in item.get("pull_requests", [])
+            if isinstance(number, int)
         }
         mapped_file = file_path in map_paths
-        output = dict(item)
-        output["mapped"] = mapped_file
+        output = {**item, "mapped": mapped_file}
         changed_files.append(output)
         if not mapped_file:
             unmapped.append(output)
             continue
 
         for node_id in nodes_by_path.get(file_path, []):
-            seed_provenance.setdefault(node_id, set()).update(pull_requests)
+            seeds.setdefault(node_id, set()).update(pull_requests)
             node = nodes[node_id]
             if node.get("kind") not in {"class", "function", "method"}:
                 continue
-            symbol = changed_symbols.setdefault(
+            symbol = symbols.setdefault(
                 node_id,
                 {
                     "id": node_id,
@@ -275,20 +274,37 @@ def _impact_from_records(
                 },
             )
             symbol["pull_requests"].update(pull_requests)
+    return changed_files, unmapped, seeds, symbols
 
-    queue: deque[str] = deque(seed_provenance)
-    distance = {node_id: 0 for node_id in seed_provenance}
-    provenance = {node_id: set(values) for node_id, values in seed_provenance.items()}
+
+def _walk_dependents(
+    nodes: dict[str, dict[str, object]],
+    incoming: dict[str, list[dict[str, object]]],
+    tested_by: dict[str, list[dict[str, object]]],
+    seeds: dict[str, set[int]],
+    *,
+    depth: int,
+    visit_limit: int,
+) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]], bool]:
+    queue: deque[str] = deque(seeds)
+    distance = {node_id: 0 for node_id in seeds}
+    provenance = {node_id: set(values) for node_id, values in seeds.items()}
     dependents: dict[str, dict[str, object]] = {}
     tests: dict[str, dict[str, object]] = {}
-    traversal_truncated = len(distance) > visit_limit
+    truncated = len(distance) > visit_limit
 
-    if traversal_truncated:
+    if truncated:
         retained = set(sorted(distance)[:visit_limit])
         queue = deque(node_id for node_id in queue if node_id in retained)
-        distance = {node_id: value for node_id, value in distance.items() if node_id in retained}
+        distance = {
+            node_id: value
+            for node_id, value in distance.items()
+            if node_id in retained
+        }
         provenance = {
-            node_id: value for node_id, value in provenance.items() if node_id in retained
+            node_id: value
+            for node_id, value in provenance.items()
+            if node_id in retained
         }
 
     while queue:
@@ -306,24 +322,19 @@ def _impact_from_records(
             source_node = nodes[source]
             new_distance = current_distance + 1
             if source_node.get("test"):
-                path_value = source_node.get("path")
-                if isinstance(path_value, str):
-                    record = tests.setdefault(
-                        path_value,
-                        {
-                            "path": path_value,
-                            "confidence": "exact",
-                            "evidence": set(),
-                            "sources": set(),
-                            "pull_requests": set(),
-                        },
+                test_path = source_node.get("path")
+                if isinstance(test_path, str):
+                    _add_test(
+                        tests,
+                        path=test_path,
+                        confidence="exact",
+                        evidence=str(edge.get("kind")),
+                        source=source,
+                        pull_requests=current_prs,
                     )
-                    record["evidence"].add(str(edge.get("kind")))
-                    record["sources"].add(source)
-                    record["pull_requests"].update(current_prs)
                 continue
 
-            if source not in seed_provenance:
+            if source not in seeds:
                 dependent = dependents.setdefault(
                     source,
                     {
@@ -350,59 +361,102 @@ def _impact_from_records(
             existing_distance = distance.get(source)
             existing_prs = provenance.setdefault(source, set())
             new_prs = current_prs - existing_prs
-            distance_improved = (
-                existing_distance is None or new_distance < existing_distance
-            )
+            improved = existing_distance is None or new_distance < existing_distance
             if existing_distance is None and len(distance) >= visit_limit:
-                traversal_truncated = True
+                truncated = True
                 continue
-            if distance_improved:
+            if improved:
                 distance[source] = new_distance
             if new_prs:
                 existing_prs.update(new_prs)
-            if distance_improved or new_prs:
+            if improved or new_prs:
                 queue.append(source)
 
     for node_id, record in dependents.items():
         _tests_for(node_id, record["pull_requests"], tested_by, tests)
+    return dependents, tests, truncated
 
-    symbol_values: list[dict[str, object]] = []
-    for node_id in sorted(changed_symbols):
-        item = changed_symbols[node_id]
-        symbol_values.append(
-            {
-                **item,
-                "pull_requests": sorted(item["pull_requests"]),
-            }
-        )
 
-    dependent_values: list[dict[str, object]] = []
-    for node_id, item in sorted(
+def _serialize_symbols(
+    symbols: dict[str, dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {**item, "pull_requests": sorted(item["pull_requests"])}
+        for _, item in sorted(symbols.items())
+    ]
+
+
+def _serialize_dependents(
+    dependents: dict[str, dict[str, object]],
+) -> list[dict[str, object]]:
+    ordered = sorted(
         dependents.items(),
         key=lambda pair: (int(pair[1]["distance"]), pair[0]),
-    ):
-        dependent_values.append(
-            {
-                **item,
-                "id": node_id,
-                "via": sorted(item["via"]),
-                "pull_requests": sorted(item["pull_requests"]),
-            }
-        )
+    )
+    return [
+        {
+            **item,
+            "id": node_id,
+            "via": sorted(item["via"]),
+            "pull_requests": sorted(item["pull_requests"]),
+        }
+        for node_id, item in ordered
+    ]
 
-    test_values: list[dict[str, object]] = []
-    for test_path in sorted(tests):
-        item = tests[test_path]
-        test_values.append(
-            {
-                **item,
-                "evidence": sorted(item["evidence"]),
-                "sources": sorted(item["sources"]),
-                "pull_requests": sorted(item["pull_requests"]),
-            }
-        )
 
-    errors = [item for item in raw_errors or [] if isinstance(item, dict)]
+def _serialize_tests(
+    tests: dict[str, dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            **item,
+            "evidence": sorted(item["evidence"]),
+            "sources": sorted(item["sources"]),
+            "pull_requests": sorted(item["pull_requests"]),
+        }
+        for _, item in sorted(tests.items())
+    ]
+
+
+def _impact_from_records(
+    mapped: dict[str, object],
+    graph: dict[str, object],
+    records: list[dict[str, object]],
+    *,
+    target: dict[str, object],
+    basis: dict[str, object],
+    graph_cache_hit: bool,
+    depth: int,
+    changed_file_limit: int,
+    symbol_limit: int,
+    dependent_limit: int,
+    test_limit: int,
+    error_limit: int,
+    visit_limit: int,
+) -> dict[str, object]:
+    nodes, nodes_by_path, incoming, tested_by = _graph_indexes(graph)
+    changed_files, unmapped, seeds, raw_symbols = _seed_changes(
+        records,
+        nodes,
+        nodes_by_path,
+        _map_paths(mapped),
+    )
+    raw_dependents, raw_tests, traversal_truncated = _walk_dependents(
+        nodes,
+        incoming,
+        tested_by,
+        seeds,
+        depth=depth,
+        visit_limit=visit_limit,
+    )
+    symbols = _serialize_symbols(raw_symbols)
+    dependents = _serialize_dependents(raw_dependents)
+    tests = _serialize_tests(raw_tests)
+    raw_errors = graph.get("parse_errors")
+    errors = [
+        item for item in raw_errors or [] if isinstance(item, dict)
+    ]
+
     return {
         "kind": "impact",
         "repository": mapped.get("repository"),
@@ -414,20 +468,20 @@ def _impact_from_records(
             "changed_files": len(changed_files),
             "mapped_files": len(changed_files) - len(unmapped),
             "unmapped_files": len(unmapped),
-            "changed_symbols": len(symbol_values),
-            "dependents": len(dependent_values),
-            "tests": len(test_values),
+            "changed_symbols": len(symbols),
+            "dependents": len(dependents),
+            "tests": len(tests),
             "traversal_truncated": traversal_truncated,
             "parse_errors": len(errors),
         },
         "changed_files": changed_files[:changed_file_limit],
         "changed_files_truncated": len(changed_files) > changed_file_limit,
-        "changed_symbols": symbol_values[:symbol_limit],
-        "changed_symbols_truncated": len(symbol_values) > symbol_limit,
-        "dependents": dependent_values[:dependent_limit],
-        "dependents_truncated": len(dependent_values) > dependent_limit,
-        "tests": test_values[:test_limit],
-        "tests_truncated": len(test_values) > test_limit,
+        "changed_symbols": symbols[:symbol_limit],
+        "changed_symbols_truncated": len(symbols) > symbol_limit,
+        "dependents": dependents[:dependent_limit],
+        "dependents_truncated": len(dependents) > dependent_limit,
+        "tests": tests[:test_limit],
+        "tests_truncated": len(tests) > test_limit,
         "unmapped_files": unmapped[:changed_file_limit],
         "unmapped_files_truncated": len(unmapped) > changed_file_limit,
         "parse_errors": errors[:error_limit],
@@ -535,18 +589,17 @@ def impact_for_pull_state(
             reason="local_repository_does_not_match_target",
         )
 
-    basis = _basis(
-        mapped,
-        path,
-        repository=repository,
-        target_head_sha=_pull_head_sha(pull),
-    )
     result = _impact_from_records(
         mapped,
         graph,
         _pull_files(pull, number),
         target=target,
-        basis=basis,
+        basis=_basis(
+            mapped,
+            path,
+            repository=repository,
+            target_head_sha=_pull_head_sha(pull),
+        ),
         graph_cache_hit=cache_hit,
         depth=depth,
         changed_file_limit=changed_file_limit,
@@ -558,6 +611,15 @@ def impact_for_pull_state(
     )
     result["source_complete"] = not bool(pull.get("files_truncated"))
     return result
+
+
+def _issue_source_complete(links: dict[str, object]) -> bool:
+    if links.get("pull_requests_truncated"):
+        return False
+    summary = links.get("summary")
+    if not isinstance(summary, dict):
+        return True
+    return not bool(summary.get("timeline_truncated"))
 
 
 def _issue_impact(
@@ -607,11 +669,7 @@ def _issue_impact(
     per_pr: list[dict[str, object]] = []
     file_groups: list[list[dict[str, object]]] = []
     all_heads_match = True
-    source_complete = not bool(links.get("pull_requests_truncated")) and not bool(
-        links.get("summary", {}).get("timeline_truncated")
-        if isinstance(links.get("summary"), dict)
-        else False
-    )
+    source_complete = _issue_source_complete(links)
 
     for linked_pr in linked:
         if not isinstance(linked_pr, dict):
@@ -629,6 +687,7 @@ def _issue_impact(
                 }
             )
             source_complete = False
+            all_heads_match = False
             continue
 
         pull = pull_request_state(

@@ -32,7 +32,11 @@ def test_issue_context_uses_unified_envelope(monkeypatch: pytest.MonkeyPatch) ->
         },
     )
 
-    result = context_module.context_state(issue=7, repository="arthexis/demo")
+    result = context_module.context_state(
+        issue=7,
+        repository="arthexis/demo",
+        include_impact=False,
+    )
 
     assert result["target"] == {"kind": "issue", "number": 7}
     assert result["included_sections"] == ["issue"]
@@ -41,6 +45,7 @@ def test_issue_context_uses_unified_envelope(monkeypatch: pytest.MonkeyPatch) ->
     assert result["reviews"] is None
     assert result["checks"] is None
     assert result["workflows"] is None
+    assert result["impact"] is None
 
 
 def test_pr_context_reuses_head_sha(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -93,7 +98,11 @@ def test_pr_context_reuses_head_sha(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(context_module, "check_state", fake_checks)
     monkeypatch.setattr(context_module, "workflow_state", fake_workflows)
 
-    result = context_module.context_state(pr=9, repository="arthexis/demo")
+    result = context_module.context_state(
+        pr=9,
+        repository="arthexis/demo",
+        include_impact=False,
+    )
 
     assert received == [("checks", "head-sha"), ("workflows", "head-sha")]
     assert result["head_sha"] == "head-sha"
@@ -137,12 +146,14 @@ def test_pr_context_can_disable_live_sections(monkeypatch: pytest.MonkeyPatch) -
         include_reviews=False,
         include_checks=False,
         include_workflows=False,
+        include_impact=False,
     )
 
     assert result["included_sections"] == ["pull_request"]
     assert result["reviews"] is None
     assert result["checks"] is None
     assert result["workflows"] is None
+    assert result["impact"] is None
 
 
 def test_pr_context_summary_surfaces_attention_items(
@@ -201,7 +212,11 @@ def test_pr_context_summary_surfaces_attention_items(
         },
     )
 
-    result = context_module.context_state(pr=5, repository="arthexis/demo")
+    result = context_module.context_state(
+        pr=5,
+        repository="arthexis/demo",
+        include_impact=False,
+    )
     summary = result["summary"]
 
     assert summary["review_decision"] == "CHANGES_REQUESTED"
@@ -211,3 +226,129 @@ def test_pr_context_summary_surfaces_attention_items(
     assert summary["failed_workflows"] == ["Clean Install"]
     assert summary["pending_workflows"] == ["Compatibility"]
     assert summary["attention"] is True
+
+
+def test_pr_context_reuses_fetched_pull_for_impact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        context_module,
+        "resolve_repository",
+        lambda repository, path: "arthexis/demo",
+    )
+    pull = {
+        "kind": "pull_request",
+        "number": 9,
+        "state": "open",
+        "draft": False,
+        "mergeable": True,
+        "mergeable_state": "clean",
+        "head": {"sha": "head-sha"},
+        "files": [],
+        "files_truncated": False,
+    }
+    monkeypatch.setattr(
+        context_module,
+        "pull_request_state",
+        lambda number, **kwargs: pull,
+    )
+
+    received: list[dict[str, object]] = []
+
+    def fake_impact(item: dict[str, object], **kwargs):
+        received.append(item)
+        return {
+            "kind": "impact",
+            "available": True,
+            "basis": {"authoritative": True},
+            "summary": {"changed_symbols": 2, "dependents": 3, "tests": 4},
+        }
+
+    monkeypatch.setattr(context_module, "impact_for_pull_state", fake_impact)
+
+    result = context_module.context_state(
+        pr=9,
+        repository="arthexis/demo",
+        include_reviews=False,
+        include_checks=False,
+        include_workflows=False,
+    )
+
+    assert received == [pull]
+    assert result["included_sections"] == ["pull_request", "impact"]
+    assert result["summary"]["impact_available"] is True
+    assert result["summary"]["impact_authoritative"] is True
+    assert result["summary"]["changed_symbols"] == 2
+    assert result["summary"]["dependent_symbols"] == 3
+    assert result["summary"]["relevant_tests"] == 4
+
+
+def test_issue_context_adds_aggregate_impact(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        context_module,
+        "resolve_repository",
+        lambda repository, path: "arthexis/demo",
+    )
+    monkeypatch.setattr(
+        context_module,
+        "issue_state",
+        lambda number, **kwargs: {
+            "kind": "issue",
+            "number": number,
+            "state": "open",
+            "state_reason": None,
+            "labels": [],
+            "comments": 0,
+        },
+    )
+    monkeypatch.setattr(
+        context_module,
+        "impact_state",
+        lambda **kwargs: {
+            "kind": "impact",
+            "available": True,
+            "basis": {"authoritative": False},
+            "summary": {"changed_symbols": 5, "dependents": 8, "tests": 3},
+            "pull_requests": [{"number": 10}, {"number": 11}],
+        },
+    )
+
+    result = context_module.context_state(issue=7, repository="arthexis/demo")
+
+    assert result["included_sections"] == ["issue", "impact"]
+    assert result["impact"]["pull_requests"] == [{"number": 10}, {"number": 11}]
+    assert result["summary"]["impact_available"] is True
+    assert result["summary"]["impact_authoritative"] is False
+    assert result["summary"]["changed_symbols"] == 5
+
+
+def test_issue_context_keeps_base_packet_when_impact_lookup_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        context_module,
+        "resolve_repository",
+        lambda repository, path: "arthexis/demo",
+    )
+    monkeypatch.setattr(
+        context_module,
+        "issue_state",
+        lambda number, **kwargs: {
+            "kind": "issue",
+            "number": number,
+            "state": "open",
+            "labels": [],
+            "comments": 0,
+        },
+    )
+
+    def fail_impact(**kwargs):
+        raise RuntimeError("GitHub unavailable")
+
+    monkeypatch.setattr(context_module, "impact_state", fail_impact)
+
+    result = context_module.context_state(issue=7, repository="arthexis/demo")
+
+    assert result["issue"]["number"] == 7
+    assert result["impact"]["available"] is False
+    assert result["summary"]["impact_available"] is False

@@ -5,6 +5,8 @@ from __future__ import annotations
 from .context import context_state
 from .discovery import repository_info
 from .github import issue_state, pull_request_state
+from .impact import impact_state
+from .links import issue_pull_requests_state
 from .live import check_state, review_state, workflow_state
 from .mapping import files_state, repository_map
 from .relationships import relationships_state
@@ -45,6 +47,23 @@ def issue(
         repository=repository,
         path=path,
         body_limit=body_limit,
+    )
+
+
+def prs(
+    issue: int,
+    repository: str | None = None,
+    path: str = ".",
+    limit: int = 20,
+    event_limit: int = 300,
+) -> dict[str, object]:
+    """Return pull requests connected to an issue."""
+    return issue_pull_requests_state(
+        issue,
+        repository=repository,
+        path=path,
+        limit=limit,
+        event_limit=event_limit,
     )
 
 
@@ -115,6 +134,7 @@ def context(
     include_reviews: bool = True,
     include_checks: bool = True,
     include_workflows: bool = True,
+    include_impact: bool = True,
     body_limit: int = 12_000,
     file_limit: int = 100,
     review_limit: int = 100,
@@ -124,6 +144,16 @@ def context(
     summary_limit: int = 2_000,
     run_limit: int = 20,
     job_limit: int = 50,
+    impact_depth: int = 2,
+    impact_pr_limit: int = 20,
+    impact_event_limit: int = 300,
+    impact_changed_file_limit: int = 100,
+    impact_symbol_limit: int = 100,
+    impact_dependent_limit: int = 100,
+    impact_test_limit: int = 100,
+    impact_error_limit: int = 20,
+    impact_visit_limit: int = 2_000,
+    refresh: bool = False,
 ) -> dict[str, object]:
     """Return one bounded context envelope for a pull request or issue."""
     return context_state(
@@ -134,6 +164,7 @@ def context(
         include_reviews=include_reviews,
         include_checks=include_checks,
         include_workflows=include_workflows,
+        include_impact=include_impact,
         body_limit=body_limit,
         file_limit=file_limit,
         review_limit=review_limit,
@@ -143,6 +174,16 @@ def context(
         summary_limit=summary_limit,
         run_limit=run_limit,
         job_limit=job_limit,
+        impact_depth=impact_depth,
+        impact_pr_limit=impact_pr_limit,
+        impact_event_limit=impact_event_limit,
+        impact_changed_file_limit=impact_changed_file_limit,
+        impact_symbol_limit=impact_symbol_limit,
+        impact_dependent_limit=impact_dependent_limit,
+        impact_test_limit=impact_test_limit,
+        impact_error_limit=impact_error_limit,
+        impact_visit_limit=impact_visit_limit,
+        refresh=refresh,
     )
 
 
@@ -220,5 +261,44 @@ def relations(
         edge_limit=edge_limit,
         node_limit=node_limit,
         error_limit=error_limit,
+        refresh=refresh,
+    )
+
+
+def impact(
+    pr: int | None = None,
+    issue: int | None = None,
+    file: str | None = None,
+    repository: str | None = None,
+    path: str = ".",
+    depth: int = 2,
+    pr_limit: int = 20,
+    event_limit: int = 300,
+    file_limit: int = 100,
+    changed_file_limit: int = 200,
+    symbol_limit: int = 200,
+    dependent_limit: int = 200,
+    test_limit: int = 100,
+    error_limit: int = 50,
+    visit_limit: int = 2_000,
+    refresh: bool = False,
+) -> dict[str, object]:
+    """Return bounded code impact for one PR, issue, or local file."""
+    return impact_state(
+        pr=pr,
+        issue=issue,
+        file=file,
+        repository=repository,
+        path=path,
+        depth=depth,
+        pr_limit=pr_limit,
+        event_limit=event_limit,
+        file_limit=file_limit,
+        changed_file_limit=changed_file_limit,
+        symbol_limit=symbol_limit,
+        dependent_limit=dependent_limit,
+        test_limit=test_limit,
+        error_limit=error_limit,
+        visit_limit=visit_limit,
         refresh=refresh,
     )

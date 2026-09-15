@@ -132,7 +132,9 @@ def test_parse_errors_are_reported_without_aborting(symbol_repo: Path) -> None:
     assert result["summary"]["parse_errors"] == 1
     assert result["parse_errors"][0]["path"] == "broken.py"
     assert result["parse_errors"][0]["type"] == "SyntaxError"
-    assert any(item["qualified_name"] == "demo.helpers.helper" for item in result["symbols"])
+    assert any(
+        item["qualified_name"] == "demo.helpers.helper" for item in result["symbols"]
+    )
 
 
 def test_invalid_symbol_filters_are_rejected(symbol_repo: Path) -> None:

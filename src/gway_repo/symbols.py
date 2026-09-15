@@ -11,7 +11,7 @@ from pathlib import Path
 from .discovery import find_root
 from .mapping import _cache_path, _full_map, _index_entries
 
-_SYMBOL_CACHE_VERSION = 1
+_SYMBOL_CACHE_VERSION = 2
 
 
 def _blob_bytes(root: Path, object_id: str) -> bytes:
@@ -84,6 +84,7 @@ class _SymbolVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
         self.symbols: list[dict[str, object]] = []
         self.imports: list[dict[str, object]] = []
+        self.calls: list[dict[str, object]] = []
         self._scope: list[tuple[str, str]] = []
 
     def _scope_names(self) -> list[str]:
@@ -172,6 +173,16 @@ class _SymbolVisitor(ast.NodeVisitor):
                 }
             )
 
+    def visit_Call(self, node: ast.Call) -> None:
+        self.calls.append(
+            {
+                "expression": ast.unparse(node.func),
+                "scope": self._scope_names(),
+                "line": node.lineno,
+            }
+        )
+        self.generic_visit(node)
+
 
 def _parse_blob(root: Path, object_id: str) -> dict[str, object]:
     try:
@@ -180,6 +191,7 @@ def _parse_blob(root: Path, object_id: str) -> dict[str, object]:
         return {
             "symbols": [],
             "imports": [],
+            "calls": [],
             "error": {
                 "type": type(exc).__name__,
                 "message": str(exc),
@@ -193,6 +205,7 @@ def _parse_blob(root: Path, object_id: str) -> dict[str, object]:
     return {
         "symbols": visitor.symbols,
         "imports": visitor.imports,
+        "calls": visitor.calls,
         "error": None,
     }
 

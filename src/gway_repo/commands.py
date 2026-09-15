@@ -7,6 +7,7 @@ from .discovery import repository_info
 from .github import issue_state, pull_request_state
 from .live import check_state, review_state, workflow_state
 from .mapping import files_state, repository_map
+from .symbols import symbols_state
 
 
 def info(path: str = ".") -> dict[str, object]:
@@ -168,5 +169,32 @@ def files(
         extension=extension,
         package=package,
         limit=limit,
+        refresh=refresh,
+    )
+
+
+def symbols(
+    path: str = ".",
+    file: str | None = None,
+    kind: str | None = None,
+    name: str | None = None,
+    package: str | None = None,
+    limit: int = 200,
+    import_limit: int = 200,
+    error_limit: int = 50,
+    include_imports: bool = True,
+    refresh: bool = False,
+) -> dict[str, object]:
+    """Return a bounded Python symbol/import index for the local repository."""
+    return symbols_state(
+        path=path,
+        file=file,
+        kind=kind,
+        name=name,
+        package=package,
+        limit=limit,
+        import_limit=import_limit,
+        error_limit=error_limit,
+        include_imports=include_imports,
         refresh=refresh,
     )

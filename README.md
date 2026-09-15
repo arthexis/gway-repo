@@ -133,11 +133,41 @@ before it is committed, while untracked files remain intentionally invisible.
 Use `--refresh` to rebuild the map explicitly. Cache failures are non-fatal, so
 read-only or unusual Git environments can still build a map when possible.
 
-This milestone intentionally does not parse Python ASTs or claim call/import
-relationships. The next symbol-index work can consume the Python files already
-identified by the map. A later context-enrichment change can then attach
-relevant mapped code areas to PR context without changing the existing context
-envelope.
+## Python symbols
+
+`symbols` adds AST-derived structure for the Python files identified by the
+repository map:
+
+```console
+gway repo symbols
+gway repo symbols --file src/gway_repo/context.py
+gway repo symbols --kind function
+gway repo symbols --name context_state
+gway repo symbols --name gway_repo.context.context_state
+gway repo symbols --package gway_repo --limit 100
+gway repo symbols --no-include-imports
+```
+
+The result contains bounded symbol, import, and parse-error sections. Classes,
+functions, and methods include qualified names and source ranges; callables also
+include normalized signatures, return annotations, decorators, and an `async`
+flag. Classes report bases and decorators. Import records preserve aliases,
+relative-import levels, lexical scope, and their source module.
+
+The Git index is authoritative for symbol parsing. `symbols` reads the tracked
+blob with `git cat-file` instead of reading a possibly different working-tree
+copy. An unstaged edit therefore does not silently change indexed symbols,
+while staging a changed file produces a new blob SHA and reparses only that
+blob. Parsed blobs are cached in the same local SQLite database used by the
+repository map, keyed by immutable blob SHA and a symbol-cache schema version.
+
+A syntax error in one tracked Python file does not abort the repository index;
+it is returned in the bounded `parse_errors` section and other files continue
+to index normally. `--refresh` bypasses both map and symbol cache reads.
+
+This milestone deliberately stops at definitions and imports. It does not yet
+claim callers, callees, import dependency edges, or test impact; those belong
+to the relationship-analysis layer built on top of this symbol index.
 
 The project roadmap is tracked in
 [issue #1](https://github.com/arthexis/gway-repo/issues/1).

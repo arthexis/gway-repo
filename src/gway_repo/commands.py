@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .context import context_state
 from .discovery import repository_info
 from .github import issue_state, pull_request_state
 from .live import check_state, review_state, workflow_state
@@ -98,6 +99,45 @@ def workflows(
         repository=repository,
         path=path,
         sha=sha,
+        run_limit=run_limit,
+        job_limit=job_limit,
+    )
+
+
+def context(
+    pr: int | None = None,
+    issue: int | None = None,
+    repository: str | None = None,
+    path: str = ".",
+    include_reviews: bool = True,
+    include_checks: bool = True,
+    include_workflows: bool = True,
+    body_limit: int = 12_000,
+    file_limit: int = 100,
+    review_limit: int = 100,
+    thread_limit: int = 50,
+    review_body_limit: int = 2_000,
+    check_limit: int = 100,
+    summary_limit: int = 2_000,
+    run_limit: int = 20,
+    job_limit: int = 50,
+) -> dict[str, object]:
+    """Return one bounded context envelope for a pull request or issue."""
+    return context_state(
+        pr=pr,
+        issue=issue,
+        repository=repository,
+        path=path,
+        include_reviews=include_reviews,
+        include_checks=include_checks,
+        include_workflows=include_workflows,
+        body_limit=body_limit,
+        file_limit=file_limit,
+        review_limit=review_limit,
+        thread_limit=thread_limit,
+        review_body_limit=review_body_limit,
+        check_limit=check_limit,
+        summary_limit=summary_limit,
         run_limit=run_limit,
         job_limit=job_limit,
     )

@@ -11,7 +11,7 @@ _SUCCESS_CONCLUSIONS = {"success", "neutral", "skipped"}
 def _head_sha(pull: dict[str, object]) -> str:
     head = pull.get("head")
     if not isinstance(head, dict) or not isinstance(head.get("sha"), str):
-        raise ValueError("pull-request context requires a head SHA")
+        raise TypeError("pull-request context requires a head SHA")
     return head["sha"]
 
 

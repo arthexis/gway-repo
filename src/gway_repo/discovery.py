@@ -47,9 +47,7 @@ def github_repository(remote_url: str) -> str | None:
 def _remotes(root: Path) -> dict[str, str]:
     names = _git(root, "remote", check=False).splitlines()
     return {
-        name: _git(root, "remote", "get-url", name)
-        for name in names
-        if name.strip()
+        name: _git(root, "remote", "get-url", name) for name in names if name.strip()
     }
 
 
@@ -68,14 +66,17 @@ def _default_branch(root: Path, remote: str | None, branch: str | None) -> str |
             return symbolic[len(prefix) :]
 
     for candidate in ("main", "master"):
-        if _git(
-            root,
-            "show-ref",
-            "--verify",
-            "--quiet",
-            f"refs/heads/{candidate}",
-            check=False,
-        ) == "":
+        if (
+            _git(
+                root,
+                "show-ref",
+                "--verify",
+                "--quiet",
+                f"refs/heads/{candidate}",
+                check=False,
+            )
+            == ""
+        ):
             result = subprocess.run(
                 [
                     "git",

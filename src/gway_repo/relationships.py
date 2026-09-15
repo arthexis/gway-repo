@@ -385,10 +385,11 @@ def _build_graph(
                         level,
                     )
                     imported_name = raw.get("name")
-                    imported_name = imported_name if isinstance(imported_name, str) else None
-                    expression = (
-                        f"{'.' * level}{imported_module or ''}"
-                        + (f" import {imported_name}" if imported_name else "")
+                    imported_name = (
+                        imported_name if isinstance(imported_name, str) else None
+                    )
+                    expression = f"{'.' * level}{imported_module or ''}" + (
+                        f" import {imported_name}" if imported_name else ""
                     )
                     candidate = (
                         ".".join(part for part in (base, imported_name) if part)
@@ -478,7 +479,11 @@ def _build_graph(
                 if not isinstance(bases, list):
                     continue
                 for base in bases:
-                    if not isinstance(base, str) or "=" in base or base.startswith("**"):
+                    if (
+                        not isinstance(base, str)
+                        or "=" in base
+                        or base.startswith("**")
+                    ):
                         continue
                     target, resolution = _resolve_reference(
                         base,
@@ -498,7 +503,9 @@ def _build_graph(
                         kind="inheritance",
                         source=source,
                         target=target,
-                        line=int(raw["line"]) if isinstance(raw.get("line"), int) else None,
+                        line=int(raw["line"])
+                        if isinstance(raw.get("line"), int)
+                        else None,
                         expression=base,
                         resolution=resolution or "unresolved",
                         confidence="exact" if target is not None else "unknown",
@@ -631,7 +638,9 @@ def relationships_state(
     if error_limit < 0:
         raise ValueError("error_limit must be non-negative")
     if kind is not None and kind not in _RELATION_KINDS:
-        raise ValueError("kind must be defines, import, call, inheritance, or tested_by")
+        raise ValueError(
+            "kind must be defines, import, call, inheritance, or tested_by"
+        )
 
     root = find_root(path)
     mapped, graph, cache_hit = _graph(root, refresh=refresh)
@@ -646,7 +655,9 @@ def relationships_state(
     errors = [error for error in raw_errors or [] if isinstance(error, dict)]
 
     normalized_file = file.replace("\\", "/") if file is not None else None
-    normalized_symbol = _resolve_symbol_filter(symbol, nodes) if symbol is not None else None
+    normalized_symbol = (
+        _resolve_symbol_filter(symbol, nodes) if symbol is not None else None
+    )
 
     selected: list[dict[str, object]] = []
     for edge in edges:
@@ -709,7 +720,9 @@ def relationships_state(
             "graph_cache_hit": cache_hit,
             "edges": len(selected),
             "resolved_edges": sum(bool(edge.get("resolved")) for edge in selected),
-            "unresolved_edges": sum(not bool(edge.get("resolved")) for edge in selected),
+            "unresolved_edges": sum(
+                not bool(edge.get("resolved")) for edge in selected
+            ),
             "incoming": incoming,
             "outgoing": outgoing,
             "by_kind": edge_counts,

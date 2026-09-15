@@ -67,8 +67,7 @@ def _cache_put(root: Path, object_id: str, payload: dict[str, object]) -> None:
                 "(cache_key TEXT PRIMARY KEY, payload TEXT NOT NULL)"
             )
             connection.execute(
-                "INSERT OR REPLACE INTO symbol_blobs(cache_key, payload) "
-                "VALUES (?, ?)",
+                "INSERT OR REPLACE INTO symbol_blobs(cache_key, payload) VALUES (?, ?)",
                 (key, json.dumps(payload, sort_keys=True, separators=(",", ":"))),
             )
     except (OSError, sqlite3.Error):

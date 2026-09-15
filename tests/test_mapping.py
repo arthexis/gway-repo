@@ -56,9 +56,7 @@ def test_repository_map_classifies_only_tracked_files(mapped_repo: Path) -> None
     assert result["summary"]["packages"] == ["demo"]
     assert result["summary"]["tests"] == 1
     assert result["summary"]["workflows"] == 1
-    assert result["packages"] == [
-        {"name": "demo", "path": "src/demo", "layout": "src"}
-    ]
+    assert result["packages"] == [{"name": "demo", "path": "src/demo", "layout": "src"}]
 
     by_path = {item["path"]: item for item in result["files"]}
     assert "untracked.py" not in by_path

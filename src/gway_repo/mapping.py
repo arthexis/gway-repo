@@ -130,11 +130,7 @@ def _index_entries(root: Path) -> list[dict[str, object]]:
             selected[path] = (stage, mode, object_id)
 
     blob_ids = sorted(
-        {
-            object_id
-            for _, mode, object_id in selected.values()
-            if mode != "160000"
-        }
+        {object_id for _, mode, object_id in selected.values() if mode != "160000"}
     )
     sizes: dict[str, int] = {}
     if blob_ids:
@@ -190,11 +186,7 @@ def _kind(path: PurePosixPath) -> str:
         return "test"
     if "migrations" in parts or "versions" in parts:
         return "migration"
-    if (
-        "docs" in parts
-        or suffix in _DOC_SUFFIXES
-        or path.stem.lower() in _DOC_NAMES
-    ):
+    if "docs" in parts or suffix in _DOC_SUFFIXES or path.stem.lower() in _DOC_NAMES:
         return "documentation"
     if parts[0] in {"bin", "scripts"} or suffix in _SCRIPT_SUFFIXES:
         return "script"
@@ -216,18 +208,14 @@ def _package_roots(paths: set[str]) -> list[dict[str, str]]:
         parent = path.parent
         parts = parent.parts
         if len(parts) == 2 and parts[0] == "src":
-            packages.append(
-                {"name": parts[1], "path": str(parent), "layout": "src"}
-            )
+            packages.append({"name": parts[1], "path": str(parent), "layout": "src"})
         elif len(parts) == 1 and parts[0] not in {
             "docs",
             "scripts",
             "test",
             "tests",
         }:
-            packages.append(
-                {"name": parts[0], "path": str(parent), "layout": "flat"}
-            )
+            packages.append({"name": parts[0], "path": str(parent), "layout": "flat"})
     return packages
 
 

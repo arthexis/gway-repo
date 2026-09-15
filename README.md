@@ -29,8 +29,9 @@ gway repo issue 917 --repository arthexis/gway --body-limit 4000
 ```
 
 When `--repository` is omitted, `gway-repo` infers `owner/repo` from the local
-Git remote. Public repositories can be queried anonymously. Set `GH_TOKEN` or
-`GITHUB_TOKEN` to authenticate for private repositories or higher API limits.
+Git remote. Public REST endpoints can be queried anonymously. Set `GH_TOKEN` or
+`GITHUB_TOKEN` to authenticate for private repositories, higher API limits, and
+GraphQL review-thread resolution state.
 
 `pr` returns normalized refs, mergeability, labels, reviewers, commit/change
 counts, linked issue references found in the body, and a bounded changed-file
@@ -39,7 +40,37 @@ to 12,000 characters and PR file lists to 100 entries; the result reports when
 either was truncated. Set `--file-limit 0` when a composition only needs PR
 metadata and should avoid the extra changed-files API request.
 
-For example, later review/check commands can compose with the same structured
-PR result in a single invocation rather than requiring separate ad-hoc parsing.
-The project roadmap is tracked in
+## Reviews, checks, and workflow state
+
+```console
+gway repo reviews 3
+gway repo reviews 3 --unresolved-only
+gway repo checks 3
+gway repo workflows 3
+```
+
+`reviews` returns review submissions and a compact review decision. When a token
+is configured it also queries GitHub GraphQL for authoritative review-thread
+resolution state; `--unresolved-only` requires that authenticated GraphQL path.
+Thread and review bodies are bounded independently.
+
+`checks` resolves the PR head SHA and returns normalized check runs, legacy
+commit statuses, failed check names, pending check names, and bounded check
+summaries. Pass `--sha` when a previous command in a chain already resolved the
+head and the extra PR metadata request should be avoided.
+
+`workflows` reports Actions runs for the PR head plus bounded job state. Failed
+jobs include the names and conclusions of failed steps without downloading or
+dumping full workflow logs. `--run-limit` and `--job-limit` bound the result;
+`--sha` similarly avoids another PR lookup when the head is already known.
+
+The intended composition is one invocation gathering several structured
+fragments, for example conceptually:
+
+```console
+gway repo pr 916 --file-limit 0 - repo reviews 916 --unresolved-only - repo checks 916 - repo workflows 916
+```
+
+A later `repo context` recipe/operation can assemble the same primitives into a
+single bounded result. The project roadmap is tracked in
 [issue #1](https://github.com/arthexis/gway-repo/issues/1).

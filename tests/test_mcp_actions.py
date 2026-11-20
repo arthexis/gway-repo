@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 from gway_repo import mcp_actions, mcp_read, mcp_stdio, mcp_workflows
 
-
 REPO = "arthexis/gway-remote"
 
 

@@ -6,10 +6,10 @@ SSH, shell execution, or alters workflow YAML.
 import json
 import re
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .auth import github_token
-from .mcp_workflows import (_allowed, _positive, _request, WorkflowError, runs)
+from .mcp_workflows import WorkflowError, _allowed, _positive, _request, runs
 
 MAX_INPUTS = 10
 MAX_INPUT_LENGTH = 200

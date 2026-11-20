@@ -1,0 +1,164 @@
+---
+# Provider-owned bootstrap for the *existing* GWay Remote node federation.
+# Execute locally on gway-001 as arthe; no SSH, new service or token store.
+- name: Install pinned repo MCP provider on gway-001
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    repo_home: /home/arthe/.local/share/gway-repo
+    repo_checkout: "{{ repo_home }}/checkouts/{{ repo_revision }}"
+    repo_executable: "{{ repo_home }}/releases/{{ repo_revision }}/bin/gway-repo-mcp"
+    repo_manifest_path: /etc/gway-mcp-providers/repo.json
+    repo_manifest:
+      source_id: repo
+      revision: "{{ repo_revision }}"
+      executable: "{{ repo_executable }}"
+      argv:
+        - "{{ repo_executable }}"
+      deployment:
+        schema: 1
+        checkout: "{{ repo_checkout }}"
+        runner: "{{ repo_checkout }}/deploy.sh"
+        revision: "{{ repo_revision }}"
+  tasks:
+    - name: Admit exactly the existing enrolled node and owner
+      ansible.builtin.assert:
+        that:
+          - lookup('pipe', 'hostname -s') == 'gway-001'
+          - lookup('pipe', 'id -un') == 'arthe'
+          - repo_revision is defined
+          - repo_revision is match('^[0-9a-f]{40}$')
+        fail_msg: "Only an exact reviewed gway-001 SHA is admitted"
+    - name: Inspect immutable provider root and provider policy directory
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: false
+      loop:
+        - "{{ repo_home }}"
+        - /etc/gway-mcp-providers
+        - "{{ repo_manifest_path }}"
+      register: repo_existing
+    - name: Reject unexpected ownership, symlinks and policy directories
+      ansible.builtin.assert:
+        that:
+          - not (repo_existing.results[0].stat.islnk | default(false))
+          - not (repo_existing.results[0].stat.exists | default(false)) or (repo_existing.results[0].stat.isdir | default(false))
+          - not (repo_existing.results[0].stat.exists | default(false)) or repo_existing.results[0].stat.pw_name == 'arthe'
+          - repo_existing.results[1].stat.isdir | default(false)
+          - not (repo_existing.results[1].stat.islnk | default(true))
+          - repo_existing.results[1].stat.pw_name == 'root'
+          - not (repo_existing.results[2].stat.islnk | default(false))
+          - not (repo_existing.results[2].stat.exists | default(false)) or (repo_existing.results[2].stat.isreg | default(false))
+          - not (repo_existing.results[2].stat.exists | default(false)) or repo_existing.results[2].stat.pw_name == 'root'
+          - not (repo_existing.results[2].stat.exists | default(false)) or (repo_existing.results[2].stat.mode | int(base=8)) % 8 < 2
+    - name: Create protected owner-managed checkout structure
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0700'
+      loop:
+        - "{{ repo_home }}"
+        - "{{ repo_home }}/checkouts"
+    - name: Clone the exact public reviewed Git revision, without credentials
+      ansible.builtin.git:
+        repo: https://github.com/arthexis/gway-repo.git
+        dest: "{{ repo_checkout }}"
+        version: "{{ repo_revision }}"
+        clone: true
+        update: false
+      environment:
+        GIT_TERMINAL_PROMPT: "0"
+    - name: Verify exact checked-out SHA, not a moving branch
+      ansible.builtin.command:
+        argv: [git, -C, "{{ repo_checkout }}", rev-parse, HEAD]
+      changed_when: false
+      register: repo_installed_head
+    - name: Refuse unverified checkout SHA
+      ansible.builtin.assert:
+        that:
+          - repo_installed_head.stdout == repo_revision
+    - name: Require clean checkout before executing repository-owned script
+      ansible.builtin.command:
+        argv: [git, -C, "{{ repo_checkout }}", status, --porcelain]
+      changed_when: false
+      register: repo_worktree_status
+    - name: Refuse unexpected local modifications
+      ansible.builtin.assert:
+        that:
+          - repo_worktree_status.stdout == ''
+    - name: Build and verify pinned owner-managed release
+      ansible.builtin.command:
+        argv:
+          - /bin/bash
+          - "{{ repo_checkout }}/deploy.sh"
+          - --expected-sha
+          - "{{ repo_revision }}"
+      register: repo_stage
+      changed_when: (repo_stage.stdout | from_json).state == 'staged'
+    - name: Verify prepared immutable provider executable
+      ansible.builtin.stat:
+        path: "{{ repo_executable }}"
+        follow: false
+      register: repo_binary
+    - name: Reject absent or symlinked provider
+      ansible.builtin.assert:
+        that:
+          - repo_binary.stat.isreg | default(false)
+          - not (repo_binary.stat.islnk | default(true))
+          - repo_binary.stat.pw_name == 'arthe'
+          - (repo_binary.stat.mode | int(base=8)) % 8 < 2
+    - name: Preserve existing root-owned manifest for rollback
+      become: true
+      ansible.builtin.slurp:
+        src: "{{ repo_manifest_path }}"
+      register: repo_previous_manifest
+      when: repo_existing.results[2].stat.exists | default(false)
+      no_log: true
+    - name: Publish only this provider manifest, with rollback on validation error
+      block:
+        - name: Install canonical pinned repo manifest
+          become: true
+          ansible.builtin.copy:
+            dest: "{{ repo_manifest_path }}"
+            owner: root
+            group: root
+            mode: '0644'
+            content: "{{ repo_manifest | to_nice_json }}\n"
+          register: repo_manifest_written
+        - name: Verify manifest contents from protected node path
+          become: true
+          ansible.builtin.slurp:
+            src: "{{ repo_manifest_path }}"
+          register: repo_installed_manifest
+          no_log: true
+        - name: Require exact installed provider declaration
+          ansible.builtin.assert:
+            that:
+              - (repo_installed_manifest.content | b64decode | from_json) == repo_manifest
+      rescue:
+        - name: Restore prior root-owned provider manifest
+          become: true
+          ansible.builtin.copy:
+            dest: "{{ repo_manifest_path }}"
+            content: "{{ repo_previous_manifest.content | b64decode }}"
+            owner: root
+            group: root
+            mode: '0644'
+          when: repo_existing.results[2].stat.exists | default(false)
+          no_log: true
+        - name: Remove the newly created invalid provider manifest
+          become: true
+          ansible.builtin.file:
+            path: "{{ repo_manifest_path }}"
+            state: absent
+          when: not (repo_existing.results[2].stat.exists | default(false))
+        - name: Stop before federated activation
+          ansible.builtin.fail:
+            msg: "Repo MCP manifest invalid; former configuration restored"
+    - name: Report staged and published revision, not live federation acceptance
+      ansible.builtin.debug:
+        msg:
+          status: manifest_published
+          revision: "{{ repo_revision }}"
+          runtime_verified: false

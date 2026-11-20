@@ -3,7 +3,8 @@
 `gway-repo` stages its own reviewed, immutable MCP stdio release. It never
 creates a new HTTP service, SSH route, credential store, root policy, or timer.
 
-An operator invokes the checkout-local `deploy.sh --expected-sha FULL_SHA`
+For first-time staging, an operator invokes the checkout-local
+`deploy.sh --expected-sha FULL_SHA`
 as the enrolled node's installation user. Its output is an executable zipapp
 at `.local/share/gway-repo/releases/FULL_SHA/bin/gway-repo-mcp` under that
 user home. Only committed Git blobs from that SHA are packaged; no network
@@ -29,6 +30,12 @@ root-owned `/etc/gway-mcp-providers/repo.json` manifest:
   }
 }
 ```
+
+The approved `checkout` must be an immutable, commit-named Git working tree at
+`/home/arthe/.local/share/gway-repo/checkouts/FULL_SHA`. The existing broker
+invokes the runner with **zero arguments**; this installer derives the SHA only
+from that canonical path and independently verifies Git HEAD. Calls from an
+unrecognized path fail closed.
 
 Existing `mcp_installed_providers` validates the registration, and
 `mcp_deployment_broker` handles provider preview/run/status receipts.

@@ -2,24 +2,34 @@
 # Provider-owned immutable build. Execution/receipts belong to GWay Remote.
 set -euo pipefail
 
-if [[ $# != 2 || "$1" != "--expected-sha" || ! "$2" =~ ^[0-9a-f]{40}$ ]]; then
-    echo "expected --expected-sha and a full lowercase commit SHA" >&2
-    exit 2
-fi
 if [[ "$(id -u)" == 0 ]]; then
     echo "run as the enrolled installation user, never root" >&2
     exit 2
 fi
 
-sha="$2"
 checkout="$(cd -- "$(dirname -- "$0")" && pwd -P)"
+root="$HOME/.local/share/gway-repo"
+if [[ $# == 0 ]]; then
+    # GWay Remote's existing broker invokes an approved runner with zero args.
+    # Its protected manifest pins checkout and revision; additionally require
+    # this repository to live in the canonical commit-addressed checkout path.
+    sha="${checkout##*/}"
+    if [[ ! "$sha" =~ ^[0-9a-f]{40}$ || "$checkout" != "$root/checkouts/$sha" ]]; then
+        echo "broker runner requires an immutable SHA-named checkout" >&2
+        exit 2
+    fi
+elif [[ $# == 2 && "$1" == "--expected-sha" && "$2" =~ ^[0-9a-f]{40}$ ]]; then
+    sha="$2"
+else
+    echo "expected --expected-sha FULL_SHA or pinned broker checkout" >&2
+    exit 2
+fi
 if [[ "$(git -C "$checkout" rev-parse --show-toplevel)" != "$checkout" ||
       "$(git -C "$checkout" rev-parse HEAD)" != "$sha" ]]; then
     echo "checkout does not match the pinned revision" >&2
     exit 2
 fi
 
-root="$HOME/.local/share/gway-repo"
 releases="$root/releases"
 release="$releases/$sha"
 umask 022

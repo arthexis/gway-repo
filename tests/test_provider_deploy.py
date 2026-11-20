@@ -62,8 +62,28 @@ class ImmutableProviderDeploymentTests(unittest.TestCase):
                 command, env=env, check=True, text=True, capture_output=True
             )
             self.assertEqual(json.loads(second.stdout)["state"], "unchanged")
+            # Existing broker calls a fixed runner with no arguments.
+            pinned = home / ".local/share/gway-repo/checkouts" / sha
+            pinned.parent.mkdir(parents=True)
+            shutil.move(str(checkout), str(pinned))
+            broker = subprocess.run(
+                ["bash", str(pinned / "deploy.sh")],
+                env=env,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(json.loads(broker.stdout)["state"], "unchanged")
+            invalid_location = subprocess.run(
+                ["bash", str(workspace / "other" / "deploy.sh")],
+                env=env,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(invalid_location.returncode, 0)
             invalid = subprocess.run(
-                command[:-1] + ["0" * 40],
+                ["bash", str(pinned / "deploy.sh"), "--expected-sha", "0" * 40],
                 env=env,
                 check=False,
                 text=True,

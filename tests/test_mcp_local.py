@@ -20,8 +20,15 @@ class LocalIntelligenceTests(unittest.TestCase):
             ["git", "init", "-q", str(self.root)],
             ["git", "-C", str(self.root), "config", "user.name", "Test"],
             ["git", "-C", str(self.root), "config", "user.email", "t@example.invalid"],
-            ["git", "-C", str(self.root), "remote", "add", "origin",
-             "https://github.com/arthexis/gway-remote.git"],
+            [
+                "git",
+                "-C",
+                str(self.root),
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/arthexis/gway-remote.git",
+            ],
         ]
         for args in commands:
             subprocess.run(args, check=True, capture_output=True)
@@ -32,7 +39,8 @@ class LocalIntelligenceTests(unittest.TestCase):
         )
         subprocess.run(
             ["git", "-C", str(self.root), "add", "src/example.py"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(self.root), "commit", "-qm", "tracked"],
@@ -44,10 +52,14 @@ class LocalIntelligenceTests(unittest.TestCase):
 
     @staticmethod
     def rpc(name, arguments):
-        return mcp_stdio.respond({
-            "jsonrpc": "2.0", "id": 7, "method": "tools/call",
-            "params": {"name": name, "arguments": arguments},
-        })
+        return mcp_stdio.respond(
+            {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "tools/call",
+                "params": {"name": name, "arguments": arguments},
+            }
+        )
 
     def test_catalog_is_read_only_and_schema_constrained(self):
         by_name = {x["name"]: x for x in mcp_stdio.TOOLS}
@@ -70,7 +82,9 @@ class LocalIntelligenceTests(unittest.TestCase):
         self.assertEqual(len(body["workspace"]["head"]), 40)
         self.assertNotIn(str(self.root), json.dumps(body))
         # Worktree modifications must never supersede the indexed blob.
-        (self.root / "src/example.py").write_text("secret worktree edit", encoding="utf-8")
+        (self.root / "src/example.py").write_text(
+            "secret worktree edit", encoding="utf-8"
+        )
         again = self.rpc("code", {**args, "file": "src/example.py"})
         self.assertNotIn("error", again)
         self.assertNotIn("secret worktree edit", json.dumps(again))
@@ -101,10 +115,19 @@ class LocalIntelligenceTests(unittest.TestCase):
             ("map", {"repository": "arthexis/gway-remote", "file_limit": 100000}),
             ("code", {"repository": "arthexis/gway-remote", "file": "../passwd"}),
             ("code", {"repository": "arthexis/gway-remote", "file": "/etc/shadow"}),
-            ("code", {"repository": "arthexis/gway-remote", "file": "src/./example.py"}),
+            (
+                "code",
+                {"repository": "arthexis/gway-remote", "file": "src/./example.py"},
+            ),
             ("code", {"repository": "arthexis/gway-remote", "symbol": "a; rm -rf /"}),
-            ("code", {"repository": "arthexis/gway-remote", "max_chars": 40000,
-                      "file": "src/example.py"}),
+            (
+                "code",
+                {
+                    "repository": "arthexis/gway-remote",
+                    "max_chars": 40000,
+                    "file": "src/example.py",
+                },
+            ),
             ("impact", {"repository": "arthexis/gway-remote", "pr": 1, "issue": 2}),
         )
         for name, args in invalid:
@@ -117,22 +140,29 @@ class LocalIntelligenceTests(unittest.TestCase):
         alias = Path(self.temp.name) / "alias"
         alias.symlink_to(self.root, target_is_directory=True)
         with patch.object(mcp_local, "_root_for", return_value=alias):
-            self.assertIn("error", self.rpc(
-                "files", {"repository": "arthexis/gway-remote"}
-            ))
+            self.assertIn(
+                "error", self.rpc("files", {"repository": "arthexis/gway-remote"})
+            )
         subprocess.run(
-            ["git", "-C", str(self.root), "remote", "set-url", "origin",
-             "https://github.com/outsider/secret.git"],
+            [
+                "git",
+                "-C",
+                str(self.root),
+                "remote",
+                "set-url",
+                "origin",
+                "https://github.com/outsider/secret.git",
+            ],
             check=True, capture_output=True,
         )
-        self.assertIn("error", self.rpc(
-            "map", {"repository": "arthexis/gway-remote"}
-        ))
+        self.assertIn("error", self.rpc("map", {"repository": "arthexis/gway-remote"}))
 
     def test_backend_exceptions_are_not_leaked(self):
-        with patch.object(mcp_local, "_workspace", side_effect=RuntimeError(
-            "private workspace path and credential"
-        )):
+        with patch.object(
+            mcp_local,
+            "_workspace",
+            side_effect=RuntimeError("private workspace path and credential"),
+        ):
             result = self.rpc("map", {"repository": "arthexis/gway-remote"})
         self.assertIn("error", result)
         self.assertNotIn("private workspace", json.dumps(result))

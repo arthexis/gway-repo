@@ -8,6 +8,7 @@ import json
 import re
 import sys
 
+from . import mcp_actions, mcp_read, mcp_workflows
 from .context import context_state
 from .github import issue_state, pull_request_state
 from .links import issue_pull_requests_state
@@ -46,7 +47,126 @@ TOOLS = [
 ]
 
 
+def _github_tool(name, description, properties, required, *, write=False):
+    return {
+        "name": name,
+        "description": description,
+        "inputSchema": {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": False,
+        },
+        "annotations": {
+            "readOnlyHint": not write,
+            "destructiveHint": write,
+            "idempotentHint": not write,
+        },
+    }
+
+
+_REPOSITORY = {"type": "string"}
+_NUMBER = {"type": "integer", "minimum": 1}
+_TEXT = {"type": "string"}
+
+TOOLS.extend(
+    [
+        _github_tool(
+            "github_workflow_runs",
+            "List bounded paginated Actions runs from reviewed repositories.",
+            {
+                "repository": _REPOSITORY,
+                "branch": _TEXT,
+                "status": _TEXT,
+                "event": _TEXT,
+                "limit": _NUMBER,
+                "page": _NUMBER,
+                "workflow_id": _NUMBER,
+            },
+            [],
+        ),
+        _github_tool(
+            "github_workflow_status",
+            "Read a run's latest jobs and step metadata.",
+            {"repository": _REPOSITORY, "run_id": _NUMBER},
+            ["repository", "run_id"],
+        ),
+        _github_tool(
+            "github_workflow_errors",
+            "Read failed job and step metadata without raw build logs.",
+            {
+                "repository": _REPOSITORY,
+                "run_id": _NUMBER,
+                "job_id": _NUMBER,
+                "limit": _NUMBER,
+            },
+            ["repository", "run_id"],
+        ),
+        _github_tool(
+            "github_branch_effective_rules",
+            "Read the complete effective rules on one GitHub branch.",
+            {"repository": _REPOSITORY, "branch": _TEXT},
+            ["repository", "branch"],
+        ),
+        _github_tool(
+            "github_commit_checks",
+            "Read bounded and completeness-checked commit checks.",
+            {"repository": _REPOSITORY, "sha": _TEXT},
+            ["repository", "sha"],
+        ),
+        _github_tool(
+            "github_workflow_list",
+            "Page through GitHub Actions workflow definitions.",
+            {"repository": _REPOSITORY, "page": _NUMBER, "limit": _NUMBER},
+            ["repository"],
+        ),
+        _github_tool(
+            "github_workflow_health",
+            "Summarize only sampled recent GitHub Actions runs.",
+            {"repository": _REPOSITORY, "branch": _TEXT, "limit": _NUMBER},
+            ["repository"],
+        ),
+        _github_tool(
+            "github_workflow_dispatch",
+            "Request workflow_dispatch on reviewed main using existing execute scope.",
+            {
+                "repository": _REPOSITORY,
+                "workflow_id": _NUMBER,
+                "ref": _TEXT,
+                "inputs": {
+                    "type": "object",
+                    "additionalProperties": {"type": "string"},
+                },
+            },
+            ["repository", "workflow_id", "ref"],
+            write=True,
+        ),
+        _github_tool(
+            "github_workflow_cancel",
+            "Request cancellation of one Actions run using execute scope.",
+            {"repository": _REPOSITORY, "run_id": _NUMBER},
+            ["repository", "run_id"],
+            write=True,
+        ),
+    ]
+)
+
+_GITHUB_HANDLERS = {
+    "github_workflow_runs": mcp_workflows.runs,
+    "github_workflow_status": mcp_workflows.status,
+    "github_workflow_errors": mcp_workflows.errors,
+    "github_branch_effective_rules": mcp_read.branch_effective_rules,
+    "github_commit_checks": mcp_read.commit_checks,
+    "github_workflow_list": mcp_actions.workflow_list,
+    "github_workflow_health": mcp_actions.workflow_health,
+    "github_workflow_dispatch": mcp_actions.workflow_dispatch,
+    "github_workflow_cancel": mcp_actions.workflow_cancel,
+}
+
+
 def _invoke(name, args):
+    if name in _GITHUB_HANDLERS:
+        return _GITHUB_HANDLERS[name](args)
     if (
         type(args) is not dict
         or set(args) != {"repository", "number"}

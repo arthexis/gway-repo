@@ -24,8 +24,11 @@ class McpStdioTests(unittest.TestCase):
         catalog = mcp_stdio.respond(
             {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
         )["result"]["tools"]
-        self.assertEqual(len(catalog), 7)
-        self.assertTrue(all(t["annotations"]["readOnlyHint"] for t in catalog))
+        self.assertEqual(len(catalog), 16)
+        self.assertEqual(
+            {t["name"] for t in catalog if not t["annotations"]["readOnlyHint"]},
+            {"github_workflow_dispatch", "github_workflow_cancel"},
+        )
         self.assertEqual(len({t["name"] for t in catalog}), len(catalog))
 
     def test_bounded_pr(self):

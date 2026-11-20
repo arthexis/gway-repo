@@ -289,6 +289,6 @@ The GitHub client reuses the installing user's `gh auth` login when no
 `GH_TOKEN` or `GITHUB_TOKEN` is supplied. No credentials are copied or stored.
 GWay Remote owns tool discovery and the effective `read`/`execute` boundary.
 
-Full Actions control/parity and deployment lifecycle are follow-on stages.
+The Actions and repository-control adapters are now staged in a separate migration PR: workflow listing, paginated runs, workflow health, per-run jobs/errors, branch-effective rules, commit checks, manual dispatch and cancellation. The provider retains initial parity with the explicitly reviewed legacy repository set. Live federation, per-tool execute scope and deployment lifecycle are still separate acceptance stages.
 **Do not retire existing GWay Remote GitHub builtins until live parity is
 verified and an operator-approved rollback is available.**

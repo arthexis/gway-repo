@@ -3,6 +3,7 @@
 This module only calls GitHub's Actions API. It never performs node deployment,
 SSH, shell execution, or alters workflow YAML.
 """
+
 import json
 import re
 from urllib.error import HTTPError, URLError
@@ -18,16 +19,24 @@ _INPUT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]{0,63}$")
 
 
 def _arguments(args, required, optional=()):
-    if (type(args) is not dict or not set(required) <= set(args)
-            or set(args) - set(required) - set(optional)):
+    if (
+        type(args) is not dict
+        or not set(required) <= set(args)
+        or set(args) - set(required) - set(optional)
+    ):
         raise ValueError("invalid_arguments")
     return _allowed(args["repository"])
 
 
 def _reference(value):
-    if (type(value) is not str or not _REF.fullmatch(value)
-            or value.startswith((".", "/")) or value.endswith("/")
-            or ".." in value or "//" in value):
+    if (
+        type(value) is not str
+        or not _REF.fullmatch(value)
+        or value.startswith((".", "/"))
+        or value.endswith("/")
+        or ".." in value
+        or "//" in value
+    ):
         raise ValueError("invalid_ref")
     return value
 
@@ -38,21 +47,36 @@ def workflow_list(args):
     limit = _positive(args.get("limit", 20), 50)
     data = _request(repository, "workflows", {"per_page": limit, "page": page})
     items, total = data.get("workflows"), data.get("total_count")
-    if (type(total) is not int or total < 0 or not isinstance(items, list)
-            or len(items) > limit):
+    if (
+        type(total) is not int
+        or total < 0
+        or not isinstance(items, list)
+        or len(items) > limit
+    ):
         raise WorkflowError("github_invalid_response")
     workflows = []
     for item in items:
-        if (type(item) is not dict or type(item.get("id")) is not int
-                or not isinstance(item.get("name"), str)
-                or not isinstance(item.get("state"), str)):
+        if (
+            type(item) is not dict
+            or type(item.get("id")) is not int
+            or not isinstance(item.get("name"), str)
+            or not isinstance(item.get("state"), str)
+        ):
             raise WorkflowError("github_invalid_response")
-        workflows.append({key: item.get(key) for key in (
-            "id", "name", "path", "state", "html_url")})
-    return {"source": "github_live", "repository": repository,
-            "workflows": workflows,
-            "pagination": {"page": page, "per_page": limit,
-                           "total_count": total, "has_more": page * limit < total}}
+        workflows.append(
+            {key: item.get(key) for key in ("id", "name", "path", "state", "html_url")}
+        )
+    return {
+        "source": "github_live",
+        "repository": repository,
+        "workflows": workflows,
+        "pagination": {
+            "page": page,
+            "per_page": limit,
+            "total_count": total,
+            "has_more": page * limit < total,
+        },
+    }
 
 
 def workflow_health(args):
@@ -69,12 +93,14 @@ def workflow_health(args):
     for item in recent:
         if item["status"] != "completed":
             counts["pending"] += 1
-            pending.append({key: item.get(key) for key in (
-                "id", "name", "status", "html_url")})
+            pending.append(
+                {key: item.get(key) for key in ("id", "name", "status", "html_url")}
+            )
         elif item["conclusion"] in ("failure", "timed_out", "action_required"):
             counts["failure"] += 1
-            failures.append({key: item.get(key) for key in (
-                "id", "name", "conclusion", "html_url")})
+            failures.append(
+                {key: item.get(key) for key in ("id", "name", "conclusion", "html_url")}
+            )
         elif item["conclusion"] == "success":
             counts["success"] += 1
         else:
@@ -89,11 +115,18 @@ def workflow_health(args):
         state = "mixed"
     else:
         state = "recent_success"
-    return {"schema": "github/workflow-health/v1", "source": "github_live",
-            "repository": repository, "scope": "recent_runs_only",
-            "state": state, "sampled": len(recent), "counts": counts,
-            "failures": failures, "pending": pending,
-            "older_runs_unchecked": data["pagination"]["has_more"]}
+    return {
+        "schema": "github/workflow-health/v1",
+        "source": "github_live",
+        "repository": repository,
+        "scope": "recent_runs_only",
+        "state": state,
+        "sampled": len(recent),
+        "counts": counts,
+        "failures": failures,
+        "pending": pending,
+        "older_runs_unchecked": data["pagination"]["has_more"],
+    }
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -109,11 +142,14 @@ def _post(repository, path, payload, expected_status):
     request = Request(
         "https://api.github.com/repos/" + repository + "/actions/" + path,
         data=json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8"),
-        headers={"Authorization": "Bearer " + token,
-                 "Accept": "application/vnd.github+json",
-                 "X-GitHub-Api-Version": "2022-11-28",
-                 "Content-Type": "application/json"},
-        method="POST")
+        headers={
+            "Authorization": "Bearer " + token,
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
     try:
         with build_opener(_NoRedirect).open(request, timeout=10) as response:
             if response.getcode() != expected_status:
@@ -142,22 +178,43 @@ def workflow_dispatch(args):
     if ref != "main":
         raise ValueError("unsupported_ref")
     inputs = args.get("inputs", {})
-    if (type(inputs) is not dict or len(inputs) > MAX_INPUTS
-            or any(type(k) is not str or not _INPUT_NAME.fullmatch(k)
-                   or type(v) is not str or len(v) > MAX_INPUT_LENGTH
-                   for k, v in inputs.items())):
+    if (
+        type(inputs) is not dict
+        or len(inputs) > MAX_INPUTS
+        or any(
+            type(k) is not str
+            or not _INPUT_NAME.fullmatch(k)
+            or type(v) is not str
+            or len(v) > MAX_INPUT_LENGTH
+            for k, v in inputs.items()
+        )
+    ):
         raise ValueError("invalid_inputs")
-    _post(repository, "workflows/" + str(workflow_id) + "/dispatches",
-          {"ref": ref, "inputs": inputs}, 204)
-    return {"source": "github_live", "repository": repository,
-            "workflow_id": workflow_id, "ref": ref,
-            "accepted": True, "execution_verified": False,
-            "note": "Accepted by GitHub; check runs for the resulting workflow execution"}
+    _post(
+        repository,
+        "workflows/" + str(workflow_id) + "/dispatches",
+        {"ref": ref, "inputs": inputs},
+        204,
+    )
+    return {
+        "source": "github_live",
+        "repository": repository,
+        "workflow_id": workflow_id,
+        "ref": ref,
+        "accepted": True,
+        "execution_verified": False,
+        "note": "Accepted by GitHub; check runs for the resulting workflow execution",
+    }
 
 
 def workflow_cancel(args):
     repository = _arguments(args, ("repository", "run_id"))
     run_id = _positive(args["run_id"], 10**18)
     _post(repository, "runs/" + str(run_id) + "/cancel", {}, 202)
-    return {"source": "github_live", "repository": repository,
-            "run_id": run_id, "accepted": True, "cancelled_verified": False}
+    return {
+        "source": "github_live",
+        "repository": repository,
+        "run_id": run_id,
+        "accepted": True,
+        "cancelled_verified": False,
+    }

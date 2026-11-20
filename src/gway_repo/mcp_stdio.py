@@ -8,7 +8,7 @@ import json
 import re
 import sys
 
-from . import mcp_actions, mcp_read, mcp_workflows
+from . import mcp_actions, mcp_local, mcp_read, mcp_workflows
 from .context import context_state
 from .github import issue_state, pull_request_state
 from .links import issue_pull_requests_state
@@ -151,6 +151,78 @@ TOOLS.extend(
     ]
 )
 
+# Local intelligence is dispatched only by repository identity, never by a host path.
+_LOCAL_FIELDS = {
+    "map": {"file_limit": {"type": "integer", "minimum": 1, "maximum": 100}},
+    "files": {
+        "kind": _TEXT,
+        "extension": _TEXT,
+        "package": _TEXT,
+        "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+    },
+    "symbols": {
+        "file": _TEXT,
+        "kind": _TEXT,
+        "name": _TEXT,
+        "package": _TEXT,
+        "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+        "import_limit": {"type": "integer", "minimum": 0, "maximum": 100},
+        "error_limit": {"type": "integer", "minimum": 0, "maximum": 30},
+        "include_imports": {"type": "boolean"},
+    },
+    "relations": {
+        "file": _TEXT,
+        "symbol": _TEXT,
+        "kind": _TEXT,
+        "edge_limit": {"type": "integer", "minimum": 1, "maximum": 200},
+        "node_limit": {"type": "integer", "minimum": 1, "maximum": 200},
+        "error_limit": {"type": "integer", "minimum": 0, "maximum": 30},
+    },
+    "impact": {
+        "file": _TEXT,
+        "pr": _NUMBER,
+        "issue": _NUMBER,
+        "depth": {"type": "integer", "minimum": 0, "maximum": 3},
+    },
+    "code": {
+        "file": _TEXT,
+        "symbol": _TEXT,
+        "start_line": _NUMBER,
+        "end_line": _NUMBER,
+        "context": {"type": "integer", "minimum": 0, "maximum": 10},
+        "max_lines": {"type": "integer", "minimum": 1, "maximum": 160},
+        "max_chars": {"type": "integer", "minimum": 1, "maximum": 12000},
+    },
+}
+_LOCAL_DOCS = {
+    "map": "Inspect the bounded Git-index repository structure.",
+    "files": "List tracked repository files using bounded filters.",
+    "symbols": "Find bounded Python symbol definitions and imports.",
+    "relations": "Inspect conservative static dependency relationships.",
+    "impact": "Inspect bounded change impact for a file, PR or issue.",
+    "code": "Read a bounded Git-index source snippet by file or symbol.",
+}
+for _name, _fields in _LOCAL_FIELDS.items():
+    TOOLS.append(
+        _github_tool(
+            _name,
+            _LOCAL_DOCS[_name],
+            {
+                "repository": {
+                    "type": "string",
+                    "enum": [
+                        "arthexis/gway-repo",
+                        "arthexis/gway-remote",
+                        "arthexis/ocpp-csms",
+                    ],
+                },
+                **_fields,
+            },
+            ["repository"],
+        )
+    )
+
+
 _GITHUB_HANDLERS = {
     "github_workflow_runs": mcp_workflows.runs,
     "github_workflow_status": mcp_workflows.status,
@@ -165,6 +237,8 @@ _GITHUB_HANDLERS = {
 
 
 def _invoke(name, args):
+    if name in _LOCAL_FIELDS:
+        return mcp_local.invoke(name, args)
     if name in _GITHUB_HANDLERS:
         return _GITHUB_HANDLERS[name](args)
     if (

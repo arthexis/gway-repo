@@ -28,7 +28,7 @@ def run(run_id, status="completed", conclusion="success"):
 class GithubMcpMigrationTests(unittest.TestCase):
     def test_complete_tool_catalog_with_explicit_write_scope(self):
         tools = {t["name"]: t for t in mcp_stdio.TOOLS}
-        self.assertEqual(len(tools), 16)
+        self.assertEqual(len(tools), 22)
         self.assertEqual(
             {
                 name

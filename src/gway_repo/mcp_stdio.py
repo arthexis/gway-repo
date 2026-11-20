@@ -114,7 +114,7 @@ def respond(request):
                 raise ValueError("oversized_reply")
         except ValueError:
             return _error(request_id, -32602, "Invalid arguments or result")
-        except Exception:
+        except (RuntimeError, OSError, TypeError, LookupError):
             return _error(request_id, -32000, "Repository operation unavailable")
         result = {"content": [{"type": "text", "text": payload}]}
     else:

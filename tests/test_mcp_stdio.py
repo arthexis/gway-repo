@@ -25,7 +25,10 @@ class McpStdioTests(unittest.TestCase):
             {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
         )["result"]["tools"]
         self.assertEqual(len(catalog), 22)
-        self.assertTrue({"map", "files", "symbols", "relations", "impact", "code"} <= {t["name"] for t in catalog})
+        self.assertTrue(
+            {"map", "files", "symbols", "relations", "impact", "code"}
+            <= {t["name"] for t in catalog}
+        )
         self.assertEqual(
             {t["name"] for t in catalog if not t["annotations"]["readOnlyHint"]},
             {"github_workflow_dispatch", "github_workflow_cancel"},

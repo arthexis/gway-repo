@@ -51,7 +51,9 @@
           - not (repo_existing.results[2].stat.islnk | default(false))
           - not (repo_existing.results[2].stat.exists | default(false)) or (repo_existing.results[2].stat.isreg | default(false))
           - not (repo_existing.results[2].stat.exists | default(false)) or repo_existing.results[2].stat.pw_name == 'root'
-          - not (repo_existing.results[2].stat.exists | default(false)) or (repo_existing.results[2].stat.mode | int(base=8)) % 8 < 2
+          # Reject group/other write bits; reading and execution are allowed.
+          - not (repo_existing.results[2].stat.exists | default(false)) or ((repo_existing.results[2].stat.mode | int(base=8)) % 4 < 2)
+          - not (repo_existing.results[2].stat.exists | default(false)) or (((repo_existing.results[2].stat.mode | int(base=8)) // 8) % 4 < 2)
     - name: Create protected owner-managed checkout structure
       ansible.builtin.file:
         path: "{{ item }}"
@@ -122,7 +124,9 @@
           - repo_binary.stat.isreg | default(false)
           - not (repo_binary.stat.islnk | default(true))
           - repo_binary.stat.pw_name == 'arthe'
-          - (repo_binary.stat.mode | int(base=8)) % 8 < 2
+          # 0755 must pass; 0775/0757/0777 must fail.
+          - (repo_binary.stat.mode | int(base=8)) % 4 < 2
+          - ((repo_binary.stat.mode | int(base=8)) // 8) % 4 < 2
     - name: Preserve existing root-owned manifest for rollback
       become: true
       ansible.builtin.slurp:

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .auth import github_token
 from .github import GitHubAPIError, _body, _request_json, resolve_repository
 
 _GRAPHQL_URL = "https://api.github.com/graphql"
@@ -22,7 +22,7 @@ _FAILURE_CONCLUSIONS = {
 
 
 def _token() -> str | None:
-    return os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+    return github_token()
 
 
 def _request_graphql(query: str, variables: dict[str, object]) -> dict[str, Any]:

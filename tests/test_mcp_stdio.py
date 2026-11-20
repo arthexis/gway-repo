@@ -134,8 +134,9 @@ class ExistingGithubIdentityTests(unittest.TestCase):
     @patch("gway_repo.auth.subprocess.run")
     def test_login_timeout_not_leaked(self, run):
         run.side_effect = subprocess.TimeoutExpired("gh", 3)
-        with patch.dict("os.environ", {}, clear=True), patch(
-            "gway_repo.auth.Path.is_file", return_value=True
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("gway_repo.auth.Path.is_file", return_value=True),
         ):
             self.assertIsNone(github_token())
 

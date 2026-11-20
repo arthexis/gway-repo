@@ -92,7 +92,6 @@ def _pages(repository, path, key, *, params=None):
     raise WorkflowError("github_incomplete_pagination")
 
 
-
 def _array_pages(repository, path, *, detect_rule_overlap=False):
     """Array endpoint: short page proves termination; detect verifiable page overlap."""
     result = []

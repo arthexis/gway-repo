@@ -3,6 +3,7 @@
 No HTTP, SSH, arbitrary checkout paths or caller-supplied credentials.
 Transport authorization and release registration belong to GWay Remote.
 """
+
 import json
 import re
 import sys
@@ -46,10 +47,14 @@ TOOLS = [
 
 
 def _invoke(name, args):
-    if (type(args) is not dict or set(args) != {"repository", "number"}
-            or type(args["number"]) is not int or args["number"] < 1
-            or type(args["repository"]) is not str
-            or not _REPO.fullmatch(args["repository"])):
+    if (
+        type(args) is not dict
+        or set(args) != {"repository", "number"}
+        or type(args["number"]) is not int
+        or args["number"] < 1
+        or type(args["repository"]) is not str
+        or not _REPO.fullmatch(args["repository"])
+    ):
         raise ValueError("invalid_arguments")
     repository = args["repository"]
     number = args["number"]
@@ -66,15 +71,14 @@ def _invoke(name, args):
     if name == "prs":
         return issue_pull_requests_state(number, repository=repository)
     if name == "context":
-        return context_state(
-            pr=number, repository=repository, include_impact=False
-        )
+        return context_state(pr=number, repository=repository, include_impact=False)
     raise ValueError("tool_not_found")
 
 
 def _error(request_id, code, message):
     return {
-        "jsonrpc": "2.0", "id": request_id,
+        "jsonrpc": "2.0",
+        "id": request_id,
         "error": {"code": code, "message": message},
     }
 

@@ -1,7 +1,7 @@
 """Reuse the installing user's existing GitHub identity."""
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 
 def github_token():

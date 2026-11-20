@@ -69,6 +69,21 @@
         update: false
       environment:
         GIT_TERMINAL_PROMPT: "0"
+    - name: Verify requested SHA remains the current published main
+      ansible.builtin.command:
+        argv:
+          - git
+          - ls-remote
+          - https://github.com/arthexis/gway-repo.git
+          - refs/heads/main
+      environment:
+        GIT_TERMINAL_PROMPT: "0"
+      changed_when: false
+      register: repo_published_main
+    - name: Reject unpublished or superseded revision
+      ansible.builtin.assert:
+        that:
+          - (repo_published_main.stdout.split() | first) == repo_revision
     - name: Verify exact checked-out SHA, not a moving branch
       ansible.builtin.command:
         argv: [git, -C, "{{ repo_checkout }}", rev-parse, HEAD]

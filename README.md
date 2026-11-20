@@ -270,3 +270,25 @@ GitHub-only context path.
 
 The project roadmap is tracked in
 [issue #1](https://github.com/arthexis/gway-repo/issues/1).
+
+
+## MCP federation (current architecture)
+
+`gway-repo` remains a repository-intelligence library, not an HTTP service.
+The former `repo.arthexis.com`/GWay Web API design in issue #11 is superseded
+by GWay Remote's existing node-owned MCP federation. No extra bearer-token
+system, TLS endpoint, SSH path or independent API service is added.
+
+The package now includes a bounded stdio entry point, `gway-repo-mcp`,
+intended for a pinned release installed under the existing node identity.
+Initially it offers GitHub PR/issue/review/check/workflow/context **read-only**
+operations for `arthexis/*` repositories; caller-provided checkout paths and
+local source reads are explicitly unavailable through MCP.
+
+The GitHub client reuses the installing user's `gh auth` login when no
+`GH_TOKEN` or `GITHUB_TOKEN` is supplied. No credentials are copied or stored.
+GWay Remote owns tool discovery and the effective `read`/`execute` boundary.
+
+Full Actions control/parity and deployment lifecycle are follow-on stages.
+**Do not retire existing GWay Remote GitHub builtins until live parity is
+verified and an operator-approved rollback is available.**

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .auth import github_token
 from .discovery import repository_info
 
 _API_ROOT = "https://api.github.com"
@@ -39,7 +39,7 @@ def resolve_repository(repository: str | None = None, path: str = ".") -> str:
 
 
 def _request_json(repository: str, endpoint: str) -> Any:
-    token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+    token = github_token()
     headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": "gway-repo",

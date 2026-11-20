@@ -14,6 +14,9 @@ authors = [
 ]
 dependencies = []
 
+[project.scripts]
+gway-repo-mcp = "gway_repo.mcp_stdio:main"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8",

@@ -1,4 +1,5 @@
 """Reuse the installing user's existing GitHub identity."""
+
 import os
 import subprocess
 from pathlib import Path

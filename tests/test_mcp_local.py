@@ -44,7 +44,8 @@ class LocalIntelligenceTests(unittest.TestCase):
         )
         subprocess.run(
             ["git", "-C", str(self.root), "commit", "-qm", "tracked"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         self.workspace = patch.object(mcp_local, "_root_for", return_value=self.root)
         self.workspace.start()
@@ -153,7 +154,8 @@ class LocalIntelligenceTests(unittest.TestCase):
                 "origin",
                 "https://github.com/outsider/secret.git",
             ],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         self.assertIn("error", self.rpc("map", {"repository": "arthexis/gway-remote"}))
 

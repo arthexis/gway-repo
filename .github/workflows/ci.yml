@@ -1,0 +1,48 @@
+name: CI
+# One PR-only aggregate check owns the full validation contract.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+  package:
+    uses: ./.github/workflows/package.yml
+  compatibility:
+    uses: ./.github/workflows/python-compatibility.yml
+  clean-install:
+    uses: ./.github/workflows/clean-install.yml
+  provider-ansible:
+    uses: ./.github/workflows/provider-ansible.yml
+
+  gate:
+    name: CI
+    if: always()
+    needs: [quality, package, compatibility, clean-install, provider-ansible]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all independent validations to succeed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          checks = json.loads(os.environ['NEEDS_JSON'])
+          expected = {'quality', 'package', 'compatibility',
+                      'clean-install', 'provider-ansible'}
+          if set(checks) != expected:
+              print('CI job membership drift:', sorted(set(checks) ^ expected))
+              sys.exit(1)
+          failed = {name: job['result'] for name, job in checks.items()
+                    if job.get('result') != 'success'}
+          if failed:
+              print('CI components failed or skipped:', failed)
+              sys.exit(1)
+          print('All CI components passed.')
+          PY

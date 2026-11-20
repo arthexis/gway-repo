@@ -22,9 +22,7 @@ _FIXED = {
     "arthexis/gway-remote": Path(
         "/home/arthe/actions-runner/_work/gway-remote/gway-remote"
     ),
-    "arthexis/ocpp-csms": Path(
-        "/home/arthe/actions-runner/_work/ocpp-csms/ocpp-csms"
-    ),
+    "arthexis/ocpp-csms": Path("/home/arthe/actions-runner/_work/ocpp-csms/ocpp-csms"),
 }
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _FILE = re.compile(r"[A-Za-z0-9_.@+ -]+(?:/[A-Za-z0-9_.@+ -]+)*\Z")
@@ -52,16 +50,32 @@ _FIELDS = {
     "map": {"file_limit"},
     "files": {"kind", "extension", "package", "limit"},
     "symbols": {
-        "file", "kind", "name", "package", "limit", "import_limit",
-        "error_limit", "include_imports",
+        "file",
+        "kind",
+        "name",
+        "package",
+        "limit",
+        "import_limit",
+        "error_limit",
+        "include_imports",
     },
     "relations": {
-        "file", "symbol", "kind", "edge_limit", "node_limit", "error_limit",
+        "file",
+        "symbol",
+        "kind",
+        "edge_limit",
+        "node_limit",
+        "error_limit",
     },
     "impact": {"file", "pr", "issue", "depth"},
     "code": {
-        "file", "symbol", "start_line", "end_line", "context",
-        "max_lines", "max_chars",
+        "file",
+        "symbol",
+        "start_line",
+        "end_line",
+        "context",
+        "max_lines",
+        "max_chars",
     },
 }
 _DEFAULTS = {
@@ -70,9 +84,15 @@ _DEFAULTS = {
     "symbols": {"limit": 100, "import_limit": 60, "error_limit": 20},
     "relations": {"edge_limit": 150, "node_limit": 150, "error_limit": 20},
     "impact": {
-        "depth": 2, "pr_limit": 5, "event_limit": 100, "file_limit": 50,
-        "changed_file_limit": 70, "symbol_limit": 80,
-        "dependent_limit": 80, "test_limit": 50, "error_limit": 20,
+        "depth": 2,
+        "pr_limit": 5,
+        "event_limit": 100,
+        "file_limit": 50,
+        "changed_file_limit": 70,
+        "symbol_limit": 80,
+        "dependent_limit": 80,
+        "test_limit": 50,
+        "error_limit": 20,
         "visit_limit": 800,
     },
     "code": {"context": 2, "max_lines": 160, "max_chars": 12_000},
@@ -162,9 +182,7 @@ def _arguments(name: str, args: object) -> tuple[str, dict[str, object]]:
     if set(args) - (_FIELDS[name] | {"repository"}):
         raise ValueError("invalid_arguments")
     repository = args.get("repository")
-    if type(repository) is not str or repository not in (
-        "arthexis/gway-repo", *_FIXED
-    ):
+    if type(repository) is not str or repository not in ("arthexis/gway-repo", *_FIXED):
         raise ValueError("repository_not_admitted")
     values = {key: val for key, val in args.items() if key != "repository"}
     for key, val in values.items():
@@ -178,9 +196,9 @@ def _arguments(name: str, args: object) -> tuple[str, dict[str, object]]:
         elif type(val) is not str or not val or len(val) > 160:
             raise ValueError("invalid_filter")
         if key == "file" and (
-            not _FILE.fullmatch(val) or
-            any(component in (".", "..") for component in val.split("/")) or
-            val.startswith("/")
+            not _FILE.fullmatch(val)
+            or any(component in (".", "..") for component in val.split("/"))
+            or val.startswith("/")
         ):
             raise ValueError("unsafe_file")
         if key == "symbol" and not _SYMBOL.fullmatch(val):
@@ -191,8 +209,10 @@ def _arguments(name: str, args: object) -> tuple[str, dict[str, object]]:
         raise ValueError("select_exactly_one_impact")
     if name == "code" and not ({"file", "symbol"} & set(values)):
         raise ValueError("missing_source_selector")
-    if name == "code" and "symbol" in values and (
-        "start_line" in values or "end_line" in values
+    if (
+        name == "code"
+        and "symbol" in values
+        and ("start_line" in values or "end_line" in values)
     ):
         raise ValueError("conflicting_source_selector")
     if name == "code" and (
@@ -227,7 +247,9 @@ def invoke(name: str, args: object) -> dict[str, object]:
     answer = {
         **cleaned,
         "workspace": {
-            "repository": repository, "head": head, "scope": "local_git_index"
+            "repository": repository,
+            "head": head,
+            "scope": "local_git_index",
         },
     }
     encoded = json.dumps(answer, allow_nan=False, sort_keys=True)

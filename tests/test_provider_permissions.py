@@ -17,5 +17,7 @@ def test_permission_guards_distinguish_write_bits():
 def test_mode_guards_are_applied_to_binary_and_existing_manifest():
     assert "((repo_binary.stat.mode | int(base=8)) // 8) % 4 < 2" in PLAYBOOK
     assert "(repo_binary.stat.mode | int(base=8)) % 4 < 2" in PLAYBOOK
-    assert "((repo_existing.results[2].stat.mode | int(base=8)) // 8) % 4 < 2" in PLAYBOOK
+    assert (
+        "((repo_existing.results[2].stat.mode | int(base=8)) // 8) % 4 < 2" in PLAYBOOK
+    )
     assert "(repo_existing.results[2].stat.mode | int(base=8)) % 4 < 2" in PLAYBOOK
